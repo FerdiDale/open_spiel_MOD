@@ -60,6 +60,8 @@ class TabularQLearningSolver {
                          double epsilon, double learning_rate,
                          double discount_factor, double lambda);
 
+  TabularQLearningSolver(std::shared_ptr<const Game> game, GenericPolicy* policy);
+
   //TabularQLearningSolver(std::shared_ptr<const Game> game, GenericPolicy* policy);
 
   void RunIteration();
@@ -71,7 +73,7 @@ class TabularQLearningSolver {
   // Given a player and a state, gets the best possible action from this state
   Action GetBestAction(const State& state, double min_utility);
 
-  //Action GetBestAction(const State& state);
+  Action GetBestAction(const State& state);
 
   // Given a state, gets the best possible action value from this state
   double GetBestActionValue(const State& state, double min_utility);
@@ -94,7 +96,7 @@ class TabularQLearningSolver {
   double discount_factor_;
   double lambda_;
   std::mt19937 rng_;
-  static GenericPolicy* policy_;
+  GenericPolicy* policy_;
   absl::flat_hash_map<std::pair<std::string, Action>, double> values_;
   absl::flat_hash_map<std::pair<std::string, Action>, double>
       eligibility_traces_;

@@ -19,7 +19,7 @@ namespace policies {
 
   using std::vector;
 
-  Action EpsilonGreedyPolicy::action_selection (State& state) {
+  Action EpsilonGreedyPolicy::action_selection (const State& state) {
     vector<Action> legal_actions = state.LegalActions();
     if (legal_actions.empty()) {
       return open_spiel::kInvalidAction;
@@ -33,7 +33,7 @@ namespace policies {
     return bestActionFunctor(state);
   }
 
-  void EpsilonGreedyPolicy::reward_update (State& state, Action& action, double reward) {
+  void EpsilonGreedyPolicy::reward_update (const State& state, Action& action, double reward) {
     //Epsilon Greedy non necessita di alcuna struttura da aggiornare, è stateless
   }
 

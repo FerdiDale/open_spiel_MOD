@@ -31,6 +31,7 @@ using open_spiel::State;
 Action GetOptimalAction(
     absl::flat_hash_map<std::pair<std::string, Action>, double> q_values,
     const std::unique_ptr<State>& state) {
+
   std::vector<Action> legal_actions = state->LegalActions();
   Action optimal_action = open_spiel::kInvalidAction;
 
@@ -50,7 +51,10 @@ void SolveTicTacToe() {
   open_spiel::algorithms::TabularQLearningSolver tabular_q_learning_solver(
       game);
 
-  int iter = 100000;
+//SERVE PER TOTALLY RANDOM 30000 ITER
+//PER EPSILON GREEDY BASTANO 4?
+//PER VBRV1 60000
+  int iter = 50000;
   while (iter-- > 0) {
     tabular_q_learning_solver.RunIteration();
   }
@@ -112,9 +116,6 @@ void SolveTicTacToeEligibilityTraces() {
 
 void SolveCatch() {
 
-  std::cout<<"Inizio \n";
-  auto start = std::chrono::high_resolution_clock::now();
-
   std::shared_ptr<const Game> game = open_spiel::LoadGame("catch");
   open_spiel::algorithms::TabularQLearningSolver tabular_q_learning_solver(
       game);
@@ -137,20 +138,14 @@ void SolveCatch() {
     }
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
-
-  auto difference = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
-
-  std::cout<<"Fine allenamento, è stato vinto il "<<total_reward/10<<"% delle partite \n"<<"E sono passati "<<difference<<" secondi\n";
-
   SPIEL_CHECK_GT(total_reward, 0);
 }
 
 int main(int argc, char** argv) {
 
-  //SolveTicTacToe();
+  SolveTicTacToe();
   //SolveTicTacToeEligibilityTraces();
-  SolveCatch();
+  //SolveCatch();
 
   return 0;
 }

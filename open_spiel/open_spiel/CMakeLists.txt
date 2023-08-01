@@ -194,6 +194,9 @@ set (OPEN_SPIEL_CORE_FILES
   tensor_game.h
   utils/usage_logging.h
   utils/usage_logging.cc
+  ../MYpolicies/VBR_like_v1.h
+  ../MYpolicies/VBR_like_v1.cpp
+  ../MYpolicies/generic_policy.h
 )
 
 # We add the subdirectory here so open_spiel_core can #include absl.

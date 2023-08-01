@@ -18,9 +18,9 @@ namespace policies {
 
   class GenericPolicy {
     public :
-      virtual Action action_selection (State& state) = 0;
+      virtual Action action_selection (const State& state) = 0;
 
-      virtual void reward_update (State& state, Action& action, double reward) = 0;
+      virtual void reward_update (const State& state, Action& action, double reward) = 0;
   };
 
 }
