@@ -19,22 +19,25 @@ namespace policies {
 
   class EpsilonGreedyPolicy : virtual public GenericPolicy {
 
-    typedef std::function<Action(const State&)> BestActionFunctor;
+    typedef std::function<Action(const State&, void*)> BestActionFunctor;
 
     private:
 
       BestActionFunctor bestActionFunctor;
       double epsilon;
+      void* parameters;
       std::mt19937 rng_;
 
     public:
 
-      EpsilonGreedyPolicy (double eps, BestActionFunctor func) {
+      EpsilonGreedyPolicy (double eps, BestActionFunctor func, void* param) {
         if (eps < 0 || eps > 1)
           std::invalid_argument("Ricevuto valore non valido");
-        else
-          epsilon = eps;
+
+        epsilon = eps;
         bestActionFunctor = func;
+        parameters = param;
+
       }
 
       virtual Action action_selection (const State&);

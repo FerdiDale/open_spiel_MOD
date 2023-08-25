@@ -30,11 +30,11 @@ namespace policies {
       return legal_actions[absl::Uniform<int>(rng_, 0, legal_actions.size())];
     }
     // Choose the best action
-    return bestActionFunctor(state);
+    return bestActionFunctor(state, parameters);
   }
 
   void EpsilonGreedyPolicy::reward_update (const State& state, Action& action, double reward) {
-    //Epsilon Greedy non necessita di alcuna struttura da aggiornare, è stateless
+    //Epsilon Greedy non necessita di alcuna propria struttura da aggiornare, è stateless
   }
 
 }

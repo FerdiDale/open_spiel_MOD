@@ -196,6 +196,10 @@ set (OPEN_SPIEL_CORE_FILES
   utils/usage_logging.cc
   ../MYpolicies/VBR_like_v1.h
   ../MYpolicies/VBR_like_v1.cpp
+  ../MYpolicies/VBR_like_v2.h
+  ../MYpolicies/VBR_like_v2.cpp
+  ../MYpolicies/eps_greedy.h
+  ../MYpolicies/eps_greedy.cpp
   ../MYpolicies/generic_policy.h
 )
 

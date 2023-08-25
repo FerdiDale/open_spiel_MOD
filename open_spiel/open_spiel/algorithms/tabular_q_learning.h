@@ -54,6 +54,7 @@ class TabularQLearningSolver {
   static inline constexpr double kDefaultLambda = 0;
 
  public:
+ virtual ~TabularQLearningSolver();
   TabularQLearningSolver(std::shared_ptr<const Game> game);
 
   TabularQLearningSolver(std::shared_ptr<const Game> game, double depth_limit,
@@ -97,6 +98,7 @@ class TabularQLearningSolver {
   double lambda_;
   std::mt19937 rng_;
   GenericPolicy* policy_;
+  std::pair<absl::flat_hash_map<std::pair<std::string, Action>, double>*, double> pair;
   absl::flat_hash_map<std::pair<std::string, Action>, double> values_;
   absl::flat_hash_map<std::pair<std::string, Action>, double>
       eligibility_traces_;

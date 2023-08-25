@@ -22,11 +22,13 @@
 #include "open_spiel/spiel.h"
 #include "open_spiel/spiel_globals.h"
 #include "open_spiel/spiel_utils.h"
+#include "open_spiel/game_transforms/turn_based_simultaneous_game.h"
 
 using open_spiel::Action;
 using open_spiel::Game;
 using open_spiel::Player;
 using open_spiel::State;
+using open_spiel::TurnBasedSimultaneousGame;
 
 Action GetOptimalAction(
     absl::flat_hash_map<std::pair<std::string, Action>, double> q_values,
@@ -47,16 +49,231 @@ Action GetOptimalAction(
 }
 
 void SolveTicTacToe() {
+
+  std::mt19937 rng_;
+
   std::shared_ptr<const Game> game = open_spiel::LoadGame("tic_tac_toe");
   open_spiel::algorithms::TabularQLearningSolver tabular_q_learning_solver(
       game);
 
 //SERVE PER TOTALLY RANDOM 30000 ITER
 //PER EPSILON GREEDY BASTANO 4?
-//PER VBRV1 60000
-  int iter = 50000;
+//PER VBRV1 50000
+//VBRV2 40000?
+  int iter = 10;
   while (iter-- > 0) {
     tabular_q_learning_solver.RunIteration();
+    std::cout<<iter<<std::endl;
+  }
+
+  const absl::flat_hash_map<std::pair<std::string, Action>, double>& q_values =
+      tabular_q_learning_solver.GetQValueTable();
+  std::unique_ptr<State> state = game->NewInitialState();
+  while (!state->IsTerminal()) {
+    std::cout<<state->ToString()<<std::endl;
+    std::cout<<state->CurrentPlayer()<<std::endl;
+
+    if (state->CurrentPlayer() != 0) {
+      std::vector<Action> legal_actions = state->LegalActions();
+      Action random_action = legal_actions[absl::Uniform<int>(rng_, 0, legal_actions.size())];
+      state->ApplyAction(random_action);
+    }
+    else {
+      Action optimal_action = GetOptimalAction(q_values, state);
+      state->ApplyAction(optimal_action);
+    }
+  }
+
+  std::cout<<"PUNTEGGIO: GIOCATORE 0 PUNTI "<<state->Returns()[0]<<" GIOCATORE 1 PUNTI "<<state->Returns()[1]<<std::endl;
+
+}
+
+void SolveChess() {
+
+  std::mt19937 rng_;
+
+  std::shared_ptr<const Game> game = open_spiel::LoadGame("chess");
+  open_spiel::algorithms::TabularQLearningSolver tabular_q_learning_solver(
+      game);
+
+  int iter = 10;
+  while (iter-- > 0) {
+    std::cout<<iter<<std::endl;
+    tabular_q_learning_solver.RunIteration();
+  }
+
+  const absl::flat_hash_map<std::pair<std::string, Action>, double>& q_values =
+      tabular_q_learning_solver.GetQValueTable();
+  std::unique_ptr<State> state = game->NewInitialState();
+  while (!state->IsTerminal()) {
+    if (state->CurrentPlayer() == 0) {
+      Action optimal_action = GetOptimalAction(q_values, state);
+      state->ApplyAction(optimal_action);
+    }
+    else {
+      std::vector<Action> legal_actions = state->LegalActions();
+      Action random_action = legal_actions[absl::Uniform<int>(rng_, 0, legal_actions.size())];
+      state->ApplyAction(random_action);
+    }
+  }
+
+  // Tie.
+  SPIEL_CHECK_EQ(state->Rewards()[1], 1);
+  SPIEL_CHECK_EQ(state->Rewards()[0], -1);
+}
+
+
+void SolveBackgammon() {
+
+  std::mt19937 rng_;
+
+  std::shared_ptr<const Game> game = open_spiel::LoadGame("backgammon");
+  open_spiel::algorithms::TabularQLearningSolver tabular_q_learning_solver(
+      game);
+
+  int iter = 40;
+  while (iter-- > 0) {
+    std::cout<<iter<<std::endl;
+    tabular_q_learning_solver.RunIteration();
+  }
+
+  const absl::flat_hash_map<std::pair<std::string, Action>, double>& q_values =
+      tabular_q_learning_solver.GetQValueTable();
+  std::unique_ptr<State> state = game->NewInitialState();
+  while (!state->IsTerminal()) {
+    std::cout<<state->ToString()<<std::endl;
+    std::cout<<state->CurrentPlayer()<<std::endl;
+
+    if (state->CurrentPlayer() != 0) {
+      std::vector<Action> legal_actions = state->LegalActions();
+      Action random_action = legal_actions[absl::Uniform<int>(rng_, 0, legal_actions.size())];
+      state->ApplyAction(random_action);
+    }
+    else {
+      Action optimal_action = GetOptimalAction(q_values, state);
+      state->ApplyAction(optimal_action);
+    }
+  }
+
+  // Tie.
+  std::cout<<"PUNTEGGIO: GIOCATORE 0 PUNTI "<<state->Returns()[0]<<" GIOCATORE 1 PUNTI "<<state->Returns()[1]<<std::endl;
+}
+
+void SolvePoker() {
+
+  static std::random_device rd;
+  static std::mt19937 rng_ (rd());
+
+  std::shared_ptr<const Game> game = open_spiel::LoadGame("leduc_poker");
+  open_spiel::algorithms::TabularQLearningSolver tabular_q_learning_solver(
+      game);
+
+  int iter = 1000;
+  while (iter-- > 0) {
+    std::cout<<iter<<std::endl;
+    tabular_q_learning_solver.RunIteration();
+  }
+
+  const absl::flat_hash_map<std::pair<std::string, Action>, double> q_values =
+      tabular_q_learning_solver.GetQValueTable();
+
+  
+  int wins = 0;
+  int draws = 0;
+  int losses = 0;
+
+  for (int i = 0; i<30; i++){
+    std::unique_ptr<State> state = game->NewInitialState();
+    while (!state->IsTerminal()) {
+      // std::cout<<state->ToString()<<std::endl;
+      // std::cout<<state->CurrentPlayer()<<std::endl;
+
+      if (state->CurrentPlayer() != 0) {
+        std::vector<Action> legal_actions = state->LegalActions();
+        Action random_action = legal_actions[absl::Uniform<int>(rng_, 0, legal_actions.size())];
+        state->ApplyAction(random_action);
+      }
+      else {
+        Action optimal_action = GetOptimalAction(q_values, state);
+        state->ApplyAction(optimal_action);
+      }
+    }
+
+    if (state->Returns()[0] > state->Returns()[1])
+      wins++;
+    else if (state->Returns()[0] == state->Returns()[1])
+      draws++;
+    else
+      losses++;
+
+  }
+
+  std::cout<<"VITTORIE: "<<wins<<", SCONFITTE: "<<losses<<", PAREGGI: "<<draws<<std::endl;
+
+}
+
+void SolveGoofspiel(){
+  static std::random_device rd;
+  static std::mt19937 rng_ (rd());
+
+  std::shared_ptr<const Game> game = open_spiel::LoadGameAsTurnBased("goofspiel");
+
+  open_spiel::algorithms::TabularQLearningSolver tabular_q_learning_solver(
+      game);
+
+  int iter = 100;
+  while (iter-- > 0) {
+    std::cout<<iter<<std::endl;
+    tabular_q_learning_solver.RunIteration();
+  }
+
+  const absl::flat_hash_map<std::pair<std::string, Action>, double> q_values =
+      tabular_q_learning_solver.GetQValueTable();
+
+  
+  int wins = 0;
+  int draws = 0;
+  int losses = 0;
+
+  for (int i = 0; i<30; i++){
+    std::unique_ptr<State> state = game->NewInitialState();
+    while (!state->IsTerminal()) {
+      // std::cout<<state->ToString()<<std::endl;
+      // std::cout<<state->CurrentPlayer()<<std::endl;
+
+      if (state->CurrentPlayer() != 0) {
+        std::vector<Action> legal_actions = state->LegalActions();
+        Action random_action = legal_actions[absl::Uniform<int>(rng_, 0, legal_actions.size())];
+        state->ApplyAction(random_action);
+      }
+      else {
+        Action optimal_action = GetOptimalAction(q_values, state);
+        state->ApplyAction(optimal_action);
+      }
+    }
+
+    if (state->Returns()[0] > state->Returns()[1])
+      wins++;
+    else if (state->Returns()[0] == state->Returns()[1])
+      draws++;
+    else
+      losses++;
+
+  }
+
+  std::cout<<"VITTORIE: "<<wins<<", SCONFITTE: "<<losses<<", PAREGGI: "<<draws<<std::endl;
+
+}
+
+void Solve2048() {
+  std::shared_ptr<const Game> game = open_spiel::LoadGame("2048");
+  open_spiel::algorithms::TabularQLearningSolver tabular_q_learning_solver(
+      game);
+
+  int iter = 1;
+  while (iter-- > 0) {
+    tabular_q_learning_solver.RunIteration();
+    std::cout<<"iterazione "<<iter<<std::endl;
   }
 
   const absl::flat_hash_map<std::pair<std::string, Action>, double>& q_values =
@@ -65,11 +282,13 @@ void SolveTicTacToe() {
   while (!state->IsTerminal()) {
     Action optimal_action = GetOptimalAction(q_values, state);
     state->ApplyAction(optimal_action);
+    std::cout<<"AZIONE"<<std::endl;
   }
 
-  // Tie.
-  SPIEL_CHECK_EQ(state->Rewards()[0], 0);
-  SPIEL_CHECK_EQ(state->Rewards()[1], 0);
+      std::cout<<"FINE"<<std::endl;
+
+
+  SPIEL_CHECK_GE(state->Returns()[0], 2048);
 }
 
 void SolveTicTacToeEligibilityTraces() {
@@ -143,9 +362,14 @@ void SolveCatch() {
 
 int main(int argc, char** argv) {
 
-  SolveTicTacToe();
+  // SolveBackgammon();
+  // SolveTicTacToe();
+  // SolvePoker();
+  SolveGoofspiel();
+  // SolveChess();
   //SolveTicTacToeEligibilityTraces();
   //SolveCatch();
+  //Solve2048();
 
   return 0;
 }
