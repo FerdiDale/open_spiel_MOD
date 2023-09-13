@@ -103,6 +103,29 @@ std::vector<double> BlackjackState::Returns() const {
   }
 }
 
+std::vector<double> BlackjackState::Rewards() const {
+  if (!IsTerminal()) {
+    return {0};
+  }
+
+  int player_total = GetBestPlayerTotal(kPlayerId);
+  int dealer_total = GetBestPlayerTotal(DealerId());
+  if (player_total > kApproachScore) {
+    // Bust.
+    return {-1};
+  } else if (dealer_total > kApproachScore) {
+    // Bust.
+    return {+1};
+  } else if (player_total > dealer_total) {
+    return {+1};
+  } else if (player_total < dealer_total) {
+    return {-1};
+  } else {
+    // Tie.
+    return {0};
+  }
+}
+
 std::string BlackjackState::ObservationString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, game_->NumPlayers());

@@ -115,6 +115,27 @@ std::vector<double> PigState::Returns() const {
   return std::vector<double>(num_players_, 0.0);
 }
 
+
+std::vector<double> PigState::Rewards() const {
+  if (!IsTerminal()) {
+    return std::vector<double>(num_players_, 0.0);
+  }
+
+  // For (n>2)-player games, must keep it zero-sum.
+  std::vector<double> returns(num_players_, -1.0 / (num_players_ - 1));
+
+  for (auto player = Player{0}; player < num_players_; ++player) {
+    if (scores_[player] >= win_score_) {
+      returns[player] = 1.0;
+      return returns;
+    }
+  }
+
+  // Nobody has won? (e.g. over horizon length.) Then everyone gets 0.
+  return std::vector<double>(num_players_, 0.0);
+}
+
+
 std::string PigState::ObservationString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);

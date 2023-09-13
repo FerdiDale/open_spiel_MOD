@@ -23,12 +23,33 @@
 #include "open_spiel/spiel_globals.h"
 #include "open_spiel/spiel_utils.h"
 #include "open_spiel/game_transforms/turn_based_simultaneous_game.h"
+#include "MYpolicies/generic_policy.h"
+#include "MYpolicies/eps_greedy.h"
+#include "MYpolicies/VBR_like_v1.h"
+#include "MYpolicies/VBR_like_v2.h"
+
+#include <iostream>
+#include "gnuplot-iostream.h"
+
+using policies::GenericPolicy;
+using policies::EpsilonGreedyPolicy;
+using policies::VBRLikePolicyV1;
+using policies::VBRLikePolicyV2;
 
 using open_spiel::Action;
 using open_spiel::Game;
 using open_spiel::Player;
 using open_spiel::State;
 using open_spiel::TurnBasedSimultaneousGame;
+
+using open_spiel::algorithms::TabularQLearningSolver;
+
+void SampleUntilNextStateOrTerminal(State* state, std::mt19937* rng_) {
+  while (state->IsChanceNode() && !state->IsTerminal()) {
+    std::vector<std::pair<Action, double>> outcomes = state->ChanceOutcomes();
+    state->ApplyAction(open_spiel::SampleAction(outcomes, *rng_).first);
+  }
+}
 
 Action GetOptimalAction(
     absl::flat_hash_map<std::pair<std::string, Action>, double> q_values,
@@ -51,19 +72,44 @@ Action GetOptimalAction(
 void SolveTicTacToe() {
 
   std::mt19937 rng_;
-
+  //
   std::shared_ptr<const Game> game = open_spiel::LoadGame("tic_tac_toe");
-  open_spiel::algorithms::TabularQLearningSolver tabular_q_learning_solver(
-      game);
+  TabularQLearningSolver tabular_q_learning_solver(game);
 
-//SERVE PER TOTALLY RANDOM 30000 ITER
-//PER EPSILON GREEDY BASTANO 4?
-//PER VBRV1 50000
-//VBRV2 40000?
-  int iter = 10;
-  while (iter-- > 0) {
-    tabular_q_learning_solver.RunIteration();
-    std::cout<<iter<<std::endl;
+  for (int phase = 0; phase < 10; phase++) { //Ripetiamo il test in 10 fasi per notare l'evoluzione dei risultati al miglioramento della tabella
+
+    std::cout<<"FASE NUMERO "<<phase+1<<std::endl;
+
+    for (int iter = 0; iter < 10000; iter++) { //Eseguiamo 10mila iterazioni in cui addestriamo l'agente
+      tabular_q_learning_solver.RunIteration();
+    }
+    //
+    // n_wins = 0;
+    absl::flat_hash_map<std::pair<std::string, Action>, double> QTable = tabular_q_learning_solver.GetQValueTable();
+    //
+    // for (int match = 0; match < 1000; match++) { //L'agente gioca al suo meglio 1000 volte, per avere una stima accurata della sua bravura
+    //   std::unique_ptr<State> state = game->NewInitialState();
+    //   while (!state->IsTerminal()) {
+    //     // Action optimal_action = GetOptimalAction(QTable, state);
+    //     // state->ApplyAction(optimal_action);
+    //     if (state->CurrentPlayer() != 0) {
+    //       std::vector<Action> legal_actions = state->LegalActions();
+    //       Action random_action = legal_actions[absl::Uniform<int>(rng_, 0, legal_actions.size())];
+    //       state->ApplyAction(random_action);
+    //     }
+    //     else {
+    //       Action optimal_action = GetOptimalAction(QTable, state);
+    //       state->ApplyAction(optimal_action);
+    //     }
+    //   }
+    //   std::cout<<"RITORNO "<<state->Returns()[0]<<std::endl;
+    //   if (state->Returns()[0] == game->MaxUtility())
+    //     n_wins++;
+    // }
+    //
+    // win_percentage = n_wins/1000;
+    // phase_scores.push_back(std::make_tuple(algo_id, phase+1, win_percentage));
+
   }
 
   const absl::flat_hash_map<std::pair<std::string, Action>, double>& q_values =
@@ -85,7 +131,6 @@ void SolveTicTacToe() {
   }
 
   std::cout<<"PUNTEGGIO: GIOCATORE 0 PUNTI "<<state->Returns()[0]<<" GIOCATORE 1 PUNTI "<<state->Returns()[1]<<std::endl;
-
 }
 
 void SolveChess() {
@@ -177,7 +222,7 @@ void SolvePoker() {
   const absl::flat_hash_map<std::pair<std::string, Action>, double> q_values =
       tabular_q_learning_solver.GetQValueTable();
 
-  
+
   int wins = 0;
   int draws = 0;
   int losses = 0;
@@ -230,7 +275,60 @@ void SolveGoofspiel(){
   const absl::flat_hash_map<std::pair<std::string, Action>, double> q_values =
       tabular_q_learning_solver.GetQValueTable();
 
-  
+
+  int wins = 0;
+  int draws = 0;
+  int losses = 0;
+
+  for (int i = 0; i<30; i++){
+    std::unique_ptr<State> state = game->NewInitialState();
+    while (!state->IsTerminal()) {
+      // std::cout<<state->ToString()<<std::endl;
+      // std::cout<<state->CurrentPlayer()<<std::endl;
+
+      if (state->CurrentPlayer() != 0) {
+        std::vector<Action> legal_actions = state->LegalActions();
+        Action random_action = legal_actions[absl::Uniform<int>(rng_, 0, legal_actions.size())];
+        state->ApplyAction(random_action);
+      }
+      else {
+        Action optimal_action = GetOptimalAction(q_values, state);
+        state->ApplyAction(optimal_action);
+      }
+    }
+
+    if (state->Returns()[0] > state->Returns()[1])
+      wins++;
+    else if (state->Returns()[0] == state->Returns()[1])
+      draws++;
+    else
+      losses++;
+
+  }
+
+  std::cout<<"VITTORIE: "<<wins<<", SCONFITTE: "<<losses<<", PAREGGI: "<<draws<<std::endl;
+
+}
+
+void SolvePig(){
+  static std::random_device rd;
+  static std::mt19937 rng_ (rd());
+
+  std::shared_ptr<const Game> game = open_spiel::LoadGameAsTurnBased("pig");
+
+  open_spiel::algorithms::TabularQLearningSolver tabular_q_learning_solver(
+      game);
+
+  int iter = 100;
+  while (iter-- > 0) {
+    std::cout<<iter<<std::endl;
+    tabular_q_learning_solver.RunIteration();
+  }
+
+  const absl::flat_hash_map<std::pair<std::string, Action>, double> q_values =
+      tabular_q_learning_solver.GetQValueTable();
+
+
   int wins = 0;
   int draws = 0;
   int losses = 0;
@@ -360,16 +458,138 @@ void SolveCatch() {
   SPIEL_CHECK_GT(total_reward, 0);
 }
 
+void TestGenericSinglePlayerGame(std::string chosen_game_name) {
+  std::shared_ptr<const Game> game = open_spiel::LoadGameAsTurnBased(chosen_game_name);
+  TabularQLearningSolver QLearningVBRLike2v1(game, new VBRLikePolicyV2(2, true));
+  TabularQLearningSolver QLearningVBRLike2v2(game, new VBRLikePolicyV2(2, false));
+  TabularQLearningSolver QLearningEpsilonGreedy(game);
+
+  std::random_device rd;
+  std::mt19937 rng_(rd());
+
+  std::vector<TabularQLearningSolver> vec_algos;
+  vec_algos.push_back(QLearningVBRLike2v1);
+  vec_algos.push_back(QLearningVBRLike2v2);
+  vec_algos.push_back(QLearningEpsilonGreedy);
+
+  double n_wins;
+  double win_percentage;
+  std::vector<std::tuple<int, int, double>> phase_scores;
+
+  for (int algo_id = 0; algo_id < vec_algos.size();  algo_id++) {
+    for (int phase = 0; phase < 10; phase++) { //Ripetiamo il test in 10 fasi per notare l'evoluzione dei risultati al miglioramento della tabella
+
+      std::cout<<"FASE NUMERO "<<phase+1<<std::endl;
+
+      for (int iter = 0; iter < 1000; iter++) { //Eseguiamo 10mila iterazioni in cui addestriamo l'agente
+        std::cout<<iter<<std::endl;
+        vec_algos[algo_id].RunIteration();
+      }
+
+      n_wins = 0;
+      absl::flat_hash_map<std::pair<std::string, Action>, double> QTable = vec_algos[algo_id].GetQValueTable();
+      // std::cout<<"POST TRASFERIMENTO"<<std::endl;
+      // for (const auto&[k,v] : QTable) {
+      //   std::cout<<"STATO "<<k.first<<" AZIONE "<<k.second<<" QVALUE "<<v<<std::endl;
+      // }
+
+      for (int match = 0; match < 1000; match++) { //L'agente gioca al suo meglio 1000 volte, per avere una stima accurata della sua bravura
+        std::unique_ptr<State> state = game->NewInitialState();
+        while (!state->IsTerminal()) {
+          SampleUntilNextStateOrTerminal(state.get(), &rng_);
+          std::cout<<state->ToString()<<std::endl;
+          Action optimal_action = GetOptimalAction(QTable, state);
+          std::cout<<"AZIONE "<<optimal_action<<std::endl;
+          state->ApplyAction(optimal_action);
+          SampleUntilNextStateOrTerminal(state.get(), &rng_);
+          // if (state->CurrentPlayer() != 0) {
+          //   // std::cout<<"STATO "<<state->ToString()<<std::endl;
+          //   // for (Action a : state->LegalActions()) {
+          //   //   std::cout<<"AZIONE "<<a<<" QVALUE "<<QTable[{state->ToString(), a}]<<std::endl;
+          //   // }
+          //   std::vector<Action> legal_actions = state->LegalActions();
+          //   Action random_action = legal_actions[absl::Uniform<int>(rng_, 0, legal_actions.size())];
+          //   state->ApplyAction(random_action);
+          // }
+          // else {
+          //   // std::cout<<"STATO "<<state->ToString()<<std::endl;
+          //   // for (Action a : state->LegalActions()) {
+          //   //   std::cout<<"AZIONE "<<a<<" QVALUE "<<QTable[{state->ToString(), a}]<<std::endl;
+          //   // }
+          //   Action optimal_action = GetOptimalAction(QTable, state);
+          //   state->ApplyAction(optimal_action);
+          // }
+        }
+        std::cout<<"RITORNO "<<state->Returns()[0]<<std::endl;
+        // if (state->Returns()[0] == game->MaxUtility())
+        //   n_wins++;
+        if (state->Returns()[0] >= 0)
+          n_wins++;
+      }
+
+      win_percentage = n_wins/1000;
+      phase_scores.push_back(std::make_tuple(algo_id, phase+1, win_percentage));
+
+    }
+
+  }
+
+  for (auto tupla : phase_scores) {
+    std::cout<<"UNO "<<std::get<0>(tupla)<<" DUE "<<std::get<1>(tupla)<<" TRE "<<std::get<2>(tupla)<<std::endl;
+  }
+
+  Gnuplot gp;
+  gp << "set terminal png size 1600,800\n";
+  gp << "set output 'data_plot.png'\n";
+  gp << "set title 'Data Plot'\n";
+  gp << "set xlabel 'fase'\n";
+  gp << "set ylabel '% di vittorie'\n";
+  gp << "set datafile separator ' '\n";
+
+  gp << "set xrange [" << 1 << ":" << 10 << "]\n";
+  gp << "set yrange [" << 0 << ":" << 1 << "]\n";
+  gp << "set ytics 0.1\n";
+  gp << "set grid\n";
+
+  gp << "plot '-' with linespoints title 'VBRLike2 (history)' lt 1 lc 'red' dt 2 pt 7, \
+          '-' with linespoints title 'VBRLike2 (no history)' lt 2 lc 'blue' dt 2 pt 7, \
+          '-' with linespoints title 'EpsilonGreedy' lt 2 lc 'green' dt 2 pt 7\n";
+  for (size_t i = 0; i < phase_scores.size(); ++i) {
+    if (std::get<0>(phase_scores[i]) == 0)
+      gp << std::get<1>(phase_scores[i]) << " " << std::get<2>(phase_scores[i]) << "\n";
+  }
+  gp << "e\n";
+
+  for (size_t i = 0; i < phase_scores.size(); ++i) {
+    if (std::get<0>(phase_scores[i]) == 1)
+      gp << std::get<1>(phase_scores[i]) << " " << std::get<2>(phase_scores[i]) << "\n";
+  }
+  gp << "e\n";
+
+  for (size_t i = 0; i < phase_scores.size(); ++i) {
+    if (std::get<0>(phase_scores[i]) == 2)
+      gp << std::get<1>(phase_scores[i]) << " " << std::get<2>(phase_scores[i]) << "\n";
+  }
+  gp << "e\n";
+
+}
+
 int main(int argc, char** argv) {
 
   // SolveBackgammon();
   // SolveTicTacToe();
   // SolvePoker();
-  SolveGoofspiel();
+  // SolveGoofspiel();
+  // SolvePig();
   // SolveChess();
   //SolveTicTacToeEligibilityTraces();
   //SolveCatch();
   //Solve2048();
+  TestGenericSinglePlayerGame("pathfinding");
+  //CLIFF WALKING
+  //PATHFINDING
+  //DEEP SEA
+  //SOLITAIRE + BLACKJACK
 
   return 0;
 }

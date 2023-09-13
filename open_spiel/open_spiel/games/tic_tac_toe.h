@@ -63,6 +63,7 @@ class TicTacToeState : public State {
   std::string ToString() const override;
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
+  std::vector<double> Rewards() const override;
   std::string InformationStateString(Player player) const override;
   std::string ObservationString(Player player) const override;
   void ObservationTensor(Player player,

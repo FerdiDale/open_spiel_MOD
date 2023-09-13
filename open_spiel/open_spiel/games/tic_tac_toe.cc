@@ -156,6 +156,16 @@ std::vector<double> TicTacToeState::Returns() const {
   }
 }
 
+std::vector<double> TicTacToeState::Rewards() const {
+  if (HasLine(Player{0})) {
+    return {1.0, -1.0};
+  } else if (HasLine(Player{1})) {
+    return {-1.0, 1.0};
+  } else {
+    return {0.0, 0.0};
+  }
+}
+
 std::string TicTacToeState::InformationStateString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);

@@ -22,6 +22,9 @@
 #include "open_spiel/spiel.h"
 #include "MYpolicies/generic_policy.h"
 
+#include <random>
+#include <iostream>
+
 using policies::GenericPolicy;
 
 namespace open_spiel {
@@ -54,7 +57,6 @@ class TabularQLearningSolver {
   static inline constexpr double kDefaultLambda = 0;
 
  public:
- virtual ~TabularQLearningSolver();
   TabularQLearningSolver(std::shared_ptr<const Game> game);
 
   TabularQLearningSolver(std::shared_ptr<const Game> game, double depth_limit,
@@ -96,7 +98,7 @@ class TabularQLearningSolver {
   double learning_rate_;
   double discount_factor_;
   double lambda_;
-  std::mt19937 rng_;
+  std::mt19937 rng_{(std::random_device())()};
   GenericPolicy* policy_;
   std::pair<absl::flat_hash_map<std::pair<std::string, Action>, double>*, double> pair;
   absl::flat_hash_map<std::pair<std::string, Action>, double> values_;

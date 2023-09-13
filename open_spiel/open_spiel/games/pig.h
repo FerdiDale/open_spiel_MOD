@@ -61,6 +61,7 @@ class PigState : public State {
   std::vector<std::pair<Action, double>> ChanceOutcomes() const override;
   std::string ToString() const override;
   bool IsTerminal() const override;
+  std::vector<double> Rewards() const override;
   std::vector<double> Returns() const override;
   std::string ObservationString(Player player) const override;
   void ObservationTensor(Player player,

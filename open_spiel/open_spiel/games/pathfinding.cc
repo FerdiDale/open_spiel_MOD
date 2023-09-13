@@ -236,6 +236,8 @@ void PathfindingState::ResolvePlayerAction(Player p) {
     returns_[p] += parent_game_.step_reward();
   }
 
+  std::cout<<"REWARD IN GAME "<<rewards_[0]<<std::endl;
+
   grid_[cur_coord.first][cur_coord.second] = kEmpty;
   grid_[next_coord.first][next_coord.second] = p;
   player_positions_[p] = next_coord;
@@ -523,7 +525,10 @@ bool PathfindingState::IsTerminal() const {
   return AllPlayersOnDestinations();
 }
 
-std::vector<double> PathfindingState::Rewards() const { return rewards_; }
+std::vector<double> PathfindingState::Rewards() const {
+  std::cout<<"REWARD RITORNATO "<<rewards_[0]<<std::endl;
+  return rewards_;
+}
 
 std::vector<double> PathfindingState::Returns() const { return returns_; }
 
