@@ -51,6 +51,7 @@ namespace pathfinding {
 // an option if desired.
 
 inline constexpr char kDefaultSingleAgentGrid[] =
+
     "A.*..**\n"
     "..*....\n"
     "....*a.\n";
@@ -65,11 +66,12 @@ inline constexpr char kExampleMultiAgentGrid[] =
     "C..*..d";
 
 // Default parameters.
-constexpr int kDefaultHorizon = 1000;
+constexpr int kDefaultHorizon = 100;
 constexpr int kDefaultNumPlayers = 1;
 constexpr double kDefaultStepReward = -0.01;
 constexpr double kDefaultSolveReward = 100.0;
 constexpr double kDefaultGroupReward = 100.0;
+constexpr double kDefaultRandomMoveChance = 0.0;
 
 struct GridSpec {
   int num_rows;
@@ -112,6 +114,7 @@ class PathfindingGame : public SimMoveGame {
   double group_reward() const { return group_reward_; }
   double solve_reward() const { return solve_reward_; }
   double step_reward() const { return step_reward_; }
+  double random_move_chance() const { return random_move_chance_;}
 
  private:
   GridSpec grid_spec_;
@@ -121,6 +124,7 @@ class PathfindingGame : public SimMoveGame {
   double solve_reward_;
   double step_reward_;
   std::vector<Action> legal_actions_;
+  double random_move_chance_;
 };
 
 class PathfindingState : public SimMoveState {

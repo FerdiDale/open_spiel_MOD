@@ -18,32 +18,29 @@
 #include <random>
 #include <typeinfo>
 
-#include "open_spiel/abseil-cpp/absl/container/flat_hash_map.h"
-#include "open_spiel/abseil-cpp/absl/random/distributions.h"
-#include "open_spiel/abseil-cpp/absl/random/random.h"
-#include "open_spiel/spiel_globals.h"
-#include "open_spiel/spiel_utils.h"
-#include "MYpolicies/generic_policy.h"
-#include "MYpolicies/eps_greedy.h"
-#include "MYpolicies/VBR_like_v1.h"
-#include "MYpolicies/VBR_like_v2.h"
+#include "bandits/eps_greedy.h"
 
 namespace open_spiel {
 namespace algorithms {
 
 using policies::GenericPolicy;
 using policies::EpsilonGreedyPolicy;
-using policies::VBRLikePolicyV1;
-using policies::VBRLikePolicyV2;
 using std::vector;
 
+std::string identity_function (const std::string state) {
+  return state;
+}
+
+
 Action getBestActionFunction (const State& state, void* data_pointer) {
-  auto data_cast = *((std::pair<absl::flat_hash_map<std::pair<std::string, Action>, double>*, double>*)data_pointer);
-  auto values_ = data_cast.first;
-  auto min_utility = data_cast.second;
+  auto data_cast = *((std::tuple<absl::flat_hash_map<std::pair<std::string, Action>, double>*, double, policies::StateAbstractionFunction>*)data_pointer);
+  auto values_ = std::get<0>(data_cast);
+  auto min_utility = std::get<1>(data_cast);
+  auto abstraction_func = std::get<2>(data_cast);
 
   vector<Action> legal_actions = state.LegalActions();
-  const auto state_str = state.ToString();
+  const auto state_str = abstraction_func(state.ToString());
+
 
   Action best_action = legal_actions[0];
   double value = min_utility;
@@ -61,7 +58,7 @@ Action TabularQLearningSolver::GetBestAction(const State& state,
                                              double min_utility) {
   vector<Action> legal_actions = state.LegalActions();
   SPIEL_CHECK_GT(legal_actions.size(), 0);
-  const auto state_str = state.ToString();
+  const auto state_str = abstraction_func(state.ToString());
 
   Action best_action = legal_actions[0];
   double value = min_utility;
@@ -81,7 +78,7 @@ double TabularQLearningSolver::GetBestActionValue(const State& state,
     // q(s,a) is 0 when s is terminal.
     return 0;
   }
-  return values_[{state.ToString(), GetBestAction(state, min_utility)}];
+  return values_[{abstraction_func(state.ToString()), GetBestAction(state, min_utility)}];
 }
 
 std::pair<Action, bool>
@@ -98,16 +95,16 @@ void TabularQLearningSolver::SampleUntilNextStateOrTerminal(State* state) {
   }
 }
 
-TabularQLearningSolver::TabularQLearningSolver(std::shared_ptr<const Game> game) : game_(game),
+TabularQLearningSolver::TabularQLearningSolver(std::shared_ptr<const Game> game, StateAbstractionFunction func) : game_(game),
     depth_limit_(kDefaultDepthLimit),
     epsilon_(kDefaultEpsilon),
     learning_rate_(kDefaultLearningRate),
     discount_factor_(kDefaultDiscountFactor),
-    lambda_(kDefaultLambda) {
+    lambda_(kDefaultLambda),
+    abstraction_func(func) {
 
-        pair = {&values_, game_->MinUtility()};
-
-        policy_ = new EpsilonGreedyPolicy(kDefaultEpsilon, getBestActionFunction, &pair);
+        policy_ = new EpsilonGreedyPolicy(epsilon_);
+        policy_->setQTableStructure(&values_, discount_factor_, learning_rate_, abstraction_func);
 
         SPIEL_CHECK_LE(lambda_, 1);
         SPIEL_CHECK_GE(lambda_, 0);
@@ -120,26 +117,21 @@ TabularQLearningSolver::TabularQLearningSolver(std::shared_ptr<const Game> game)
 
         // No support for simultaneous games (needs an LP solver). And so also must
         // be a perfect information game.
-        // SPIEL_CHECK_EQ(game_->GetType().dynamics, GameType::Dynamics::kSequential);
+        SPIEL_CHECK_EQ(game_->GetType().dynamics, GameType::Dynamics::kSequential);
         // SPIEL_CHECK_EQ(game_->GetType().information,
         //                GameType::Information::kPerfectInformation);
 
 }
 
-// TabularQLearningSolver::TabularQLearningSolver(std::shared_ptr<const Game> game)
-//     : TabularQLearningSolver(game, new VBRLikePolicyV2()) {
-// }
-
 TabularQLearningSolver::TabularQLearningSolver(
     std::shared_ptr<const Game> game, double depth_limit, double epsilon,
-    double learning_rate, double discount_factor, double lambda)  : game_(game),
+    double learning_rate, double discount_factor, double lambda, StateAbstractionFunction func)  : game_(game),
       depth_limit_(depth_limit),
       epsilon_(epsilon),
       learning_rate_(learning_rate),
       discount_factor_(discount_factor),
-      lambda_(lambda){
-
-          pair = {&values_, game_->MinUtility()};
+      lambda_(lambda),
+      abstraction_func(func){
 
           SPIEL_CHECK_LE(lambda_, 1);
           SPIEL_CHECK_GE(lambda_, 0);
@@ -153,26 +145,53 @@ TabularQLearningSolver::TabularQLearningSolver(
 
         // No support for simultaneous games (needs an LP solver). And so also must
         // be a perfect information game.
-        // SPIEL_CHECK_EQ(game_->GetType().dynamics, GameType::Dynamics::kSequential);
+        SPIEL_CHECK_EQ(game_->GetType().dynamics, GameType::Dynamics::kSequential);
         // SPIEL_CHECK_EQ(game_->GetType().information,
                       //  GameType::Information::kPerfectInformation);
 
-        policy_ = new EpsilonGreedyPolicy(kDefaultEpsilon, getBestActionFunction, &pair);
+        policy_ = new EpsilonGreedyPolicy(epsilon_);
+        policy_->setQTableStructure(&values_, discount_factor_, learning_rate_, abstraction_func);
   }
 
-  TabularQLearningSolver::TabularQLearningSolver(std::shared_ptr<const Game> game, GenericPolicy* policy) : game_(game),
+  TabularQLearningSolver::TabularQLearningSolver(
+    std::shared_ptr<const Game> game, double learning_rate, double discount_factor, GenericPolicy* policy, StateAbstractionFunction func)  : game_(game),
+      depth_limit_(kDefaultDepthLimit),
+      epsilon_(kDefaultEpsilon),
+      learning_rate_(learning_rate),
+      discount_factor_(discount_factor),
+      lambda_(kDefaultLambda),
+      policy_(policy),
+      abstraction_func(func){
+
+        policy_->setQTableStructure(&values_, discount_factor_, learning_rate_, abstraction_func);
+
+        SPIEL_CHECK_LE(lambda_, 1);
+        SPIEL_CHECK_GE(lambda_, 0);
+
+        // Currently only supports 1-player or 2-player zero sum games
+        SPIEL_CHECK_TRUE(game_->NumPlayers() == 1 || game_->NumPlayers() == 2);
+        if (game_->NumPlayers() == 2) {
+          SPIEL_CHECK_EQ(game_->GetType().utility, GameType::Utility::kZeroSum);
+        }
+
+
+        // No support for simultaneous games (needs an LP solver). And so also must
+        // be a perfect information game.
+        SPIEL_CHECK_EQ(game_->GetType().dynamics, GameType::Dynamics::kSequential);
+        // SPIEL_CHECK_EQ(game_->GetType().information,
+                      //  GameType::Information::kPerfectInformation);
+  }
+
+  TabularQLearningSolver::TabularQLearningSolver(std::shared_ptr<const Game> game, GenericPolicy* policy, StateAbstractionFunction func) : game_(game),
     depth_limit_(kDefaultDepthLimit),
     epsilon_(kDefaultEpsilon),
     learning_rate_(kDefaultLearningRate),
     discount_factor_(kDefaultDiscountFactor),
     lambda_(kDefaultLambda),
-    policy_(policy) {
+    policy_(policy),
+    abstraction_func(func) {
 
-        pair = {&values_, game_->MinUtility()};
-
-        if (typeid(*policy_) == typeid(VBRLikePolicyV2)) {
-          ((VBRLikePolicyV2*)policy_)->setQTableStructure(&values_, learning_rate_, discount_factor_);
-        }
+        policy_->setQTableStructure(&values_, discount_factor_, learning_rate_, abstraction_func);
 
         SPIEL_CHECK_LE(lambda_, 1);
         SPIEL_CHECK_GE(lambda_, 0);
@@ -185,7 +204,7 @@ TabularQLearningSolver::TabularQLearningSolver(
 
         // No support for simultaneous games (needs an LP solver). And so also must
         // be a perfect information game.
-        // SPIEL_CHECK_EQ(game_->GetType().dynamics, GameType::Dynamics::kSequential);
+        SPIEL_CHECK_EQ(game_->GetType().dynamics, GameType::Dynamics::kSequential);
         // SPIEL_CHECK_EQ(game_->GetType().information,
                       //  GameType::Information::kPerfectInformation);
 
@@ -193,22 +212,28 @@ TabularQLearningSolver::TabularQLearningSolver(
 
 const absl::flat_hash_map<std::pair<std::string, Action>, double>&
 TabularQLearningSolver::GetQValueTable() const {
-  // std::cout<<"PRE TRASFERIMENTO"<<std::endl;
-  // for (const auto&[k,v] : values_) {
-  //   std::cout<<"STATO "<<k.first<<" AZIONE "<<k.second<<" QVALUE "<<v<<std::endl;
+  // for (auto& [k, v] : values_) {
+  //   std::cout<<"STATO"<<std::endl;
+  //   std::cout<<k.first<<std::endl;
+  //   std::cout<<"AZIONE "<<k.second<<" QVALUE "<<v<<std::endl;
   // }
   return values_;
 }
 
+policies::StateAbstractionFunction TabularQLearningSolver::GetAbstractionFunction() const {
+  return abstraction_func;
+}
+
 void TabularQLearningSolver::RunIteration() {
+
   const double min_utility = game_->MinUtility();
+
   // Choose start state
   std::unique_ptr<State> curr_state = game_->NewInitialState();
   SampleUntilNextStateOrTerminal(curr_state.get());
 
   while (!curr_state->IsTerminal()) {
     const Player player = curr_state->CurrentPlayer();
-    std::cout<<"PLAYER "<<player<<std::endl;
 
     // Sample action from the state using an epsilon-greedy policy
     auto [curr_action, chosen_uniformly] =
@@ -225,17 +250,23 @@ void TabularQLearningSolver::RunIteration() {
         GetBestActionValue(*next_state, min_utility);
 
     // Update the q value
-    std::string key = curr_state->ToString();
+    std::string key = abstraction_func(curr_state->ToString());
+
     double new_q_value = reward + discount_factor_ * next_q_value;
-    std::cout<<"REWARD "<<reward<<" NEXT_Q_VALUE "<<next_q_value<<std::endl;
+    // std::cout<<"REWARD "<<reward<<" NEXT_Q_VALUE "<<next_q_value<<std::endl;
 
     double prev_q_val = values_[{key, curr_action}];
     if (lambda_ == 0) {
+
+      std::cout<<"STATO "<<curr_state->ToString()<<std::endl;
+      for (Action a : curr_state->LegalActions()) {
+        std::cout<<"AZIONE POSSIBILE "<<a<<" QVALUE "<<values_[{key, a}]<<std::endl;
+      }
       // If lambda_ is equal to zero run Q-learning as usual.
       // It's not necessary to update eligibility traces.
       values_[{key, curr_action}] +=
           learning_rate_ * (new_q_value - prev_q_val);
-      std::cout<<"STATO "<<key<<" AZIONE "<<curr_action<<" QVALUE "<<values_[{key, curr_action}]<<std::endl;
+      std::cout<<" SCELGO AZIONE "<<curr_action<<" NUOVO QVALUE "<<values_[{key, curr_action}]<<std::endl;
     } else {
       double lambda =
           player != next_state->CurrentPlayer() ? -lambda_ : lambda_;
@@ -263,186 +294,3 @@ void TabularQLearningSolver::RunIteration() {
 }
 }  // namespace algorithms
 }  // namespace open_spiel
-
-
-//CODICE ORIGINALE
-
-/*#include "open_spiel/algorithms/tabular_q_learning.h"
-
-#include <algorithm>
-#include <random>
-
-#include "open_spiel/abseil-cpp/absl/container/flat_hash_map.h"
-#include "open_spiel/abseil-cpp/absl/random/distributions.h"
-#include "open_spiel/abseil-cpp/absl/random/random.h"
-#include "open_spiel/spiel_globals.h"
-#include "open_spiel/spiel_utils.h"
-
-namespace open_spiel {
-namespace algorithms {
-
-using std::vector;
-
-Action TabularQLearningSolver::GetBestAction(const State& state,
-                                             double min_utility) {
-  vector<Action> legal_actions = state.LegalActions();
-  SPIEL_CHECK_GT(legal_actions.size(), 0);
-  const auto state_str = state.ToString();
-
-  Action best_action = legal_actions[0];
-  double value = min_utility;
-  for (const Action& action : legal_actions) {
-    double q_val = values_[{state_str, action}];
-    if (q_val >= value) {
-      value = q_val;
-      best_action = action;
-    }
-  }
-  return best_action;
-}
-
-double TabularQLearningSolver::GetBestActionValue(const State& state,
-                                                  double min_utility) {
-  if (state.IsTerminal()) {
-    // q(s,a) is 0 when s is terminal.
-    return 0;
-  }
-  return values_[{state.ToString(), GetBestAction(state, min_utility)}];
-}
-
-std::pair<Action, bool>
-TabularQLearningSolver::SampleActionFromEpsilonGreedyPolicy(
-    const State& state, double min_utility) {
-  vector<Action> legal_actions = state.LegalActions();
-  if (legal_actions.empty()) {
-    return {kInvalidAction, false};
-  }
-
-  if (absl::Uniform(rng_, 0.0, 1.0) < epsilon_) {
-    // Choose a random action
-    return {legal_actions[absl::Uniform<int>(rng_, 0, legal_actions.size())],
-            true};
-  }
-  // Choose the best action
-  return {GetBestAction(state, min_utility), false};
-}
-
-void TabularQLearningSolver::SampleUntilNextStateOrTerminal(State* state) {
-  // Repeatedly sample while chance node, so that we end up at a decision node
-  while (state->IsChanceNode() && !state->IsTerminal()) {
-    std::vector<std::pair<Action, double>> outcomes = state->ChanceOutcomes();
-    state->ApplyAction(SampleAction(outcomes, rng_).first);
-  }
-}
-
-TabularQLearningSolver::TabularQLearningSolver(std::shared_ptr<const Game> game)
-    : game_(game),
-      depth_limit_(kDefaultDepthLimit),
-      epsilon_(kDefaultEpsilon),
-      learning_rate_(kDefaultLearningRate),
-      discount_factor_(kDefaultDiscountFactor),
-      lambda_(kDefaultLambda) {
-  SPIEL_CHECK_LE(lambda_, 1);
-  SPIEL_CHECK_GE(lambda_, 0);
-
-  // Currently only supports 1-player or 2-player zero sum games
-  SPIEL_CHECK_TRUE(game_->NumPlayers() == 1 || game_->NumPlayers() == 2);
-  if (game_->NumPlayers() == 2) {
-    SPIEL_CHECK_EQ(game_->GetType().utility, GameType::Utility::kZeroSum);
-  }
-
-  // No support for simultaneous games (needs an LP solver). And so also must
-  // be a perfect information game.
-  SPIEL_CHECK_EQ(game_->GetType().dynamics, GameType::Dynamics::kSequential);
-  SPIEL_CHECK_EQ(game_->GetType().information,
-                 GameType::Information::kPerfectInformation);
-}
-
-TabularQLearningSolver::TabularQLearningSolver(
-    std::shared_ptr<const Game> game, double depth_limit, double epsilon,
-    double learning_rate, double discount_factor, double lambda)
-    : game_(game),
-      depth_limit_(depth_limit),
-      epsilon_(epsilon),
-      learning_rate_(learning_rate),
-      discount_factor_(discount_factor),
-      lambda_(lambda) {
-  SPIEL_CHECK_LE(lambda_, 1);
-  SPIEL_CHECK_GE(lambda_, 0);
-
-  // Currently only supports 1-player or 2-player zero sum games
-  SPIEL_CHECK_TRUE(game_->NumPlayers() == 1 || game_->NumPlayers() == 2);
-  if (game_->NumPlayers() == 2) {
-    SPIEL_CHECK_EQ(game_->GetType().utility, GameType::Utility::kZeroSum);
-  }
-
-  // No support for simultaneous games (needs an LP solver). And so also must
-  // be a perfect information game.
-  SPIEL_CHECK_EQ(game_->GetType().dynamics, GameType::Dynamics::kSequential);
-  SPIEL_CHECK_EQ(game_->GetType().information,
-                 GameType::Information::kPerfectInformation);
-}
-
-const absl::flat_hash_map<std::pair<std::string, Action>, double>&
-TabularQLearningSolver::GetQValueTable() const {
-  return values_;
-}
-
-void TabularQLearningSolver::RunIteration() {
-  const double min_utility = game_->MinUtility();
-  // Choose start state
-  std::unique_ptr<State> curr_state = game_->NewInitialState();
-  SampleUntilNextStateOrTerminal(curr_state.get());
-
-  while (!curr_state->IsTerminal()) {
-    const Player player = curr_state->CurrentPlayer();
-
-    // Sample action from the state using an epsilon-greedy policy
-    auto [curr_action, chosen_uniformly] =
-        SampleActionFromEpsilonGreedyPolicy(*curr_state, min_utility);
-
-    std::unique_ptr<State> next_state = curr_state->Child(curr_action);
-    SampleUntilNextStateOrTerminal(next_state.get());
-
-    const double reward = next_state->Rewards()[player];
-    // Next q-value in perspective of player to play at curr_state (important
-    // note: exploits property of two-player zero-sum)
-    const double next_q_value =
-        (player != next_state->CurrentPlayer() ? -1 : 1) *
-        GetBestActionValue(*next_state, min_utility);
-
-    // Update the q value
-    std::string key = curr_state->ToString();
-    double new_q_value = reward + discount_factor_ * next_q_value;
-
-    double prev_q_val = values_[{key, curr_action}];
-    if (lambda_ == 0) {
-      // If lambda_ is equal to zero run Q-learning as usual.
-      // It's not necessary to update eligibility traces.
-      values_[{key, curr_action}] +=
-          learning_rate_ * (new_q_value - prev_q_val);
-    } else {
-      double lambda =
-          player != next_state->CurrentPlayer() ? -lambda_ : lambda_;
-      eligibility_traces_[{key, curr_action}] += 1;
-
-      for (const auto& q_cell : values_) {
-        std::string state = q_cell.first.first;
-        Action action = q_cell.first.second;
-
-        values_[{state, action}] += learning_rate_ *
-                                    (new_q_value - prev_q_val) *
-                                    eligibility_traces_[{state, action}];
-        if (chosen_uniformly) {
-          eligibility_traces_[{state, action}] = 0;
-        } else {
-          eligibility_traces_[{state, action}] *= discount_factor_ * lambda;
-        }
-      }
-    }
-
-    curr_state = std::move(next_state);
-  }
-}
-}  // namespace algorithms
-}  // namespace open_spiel*/

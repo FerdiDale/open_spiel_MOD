@@ -20,12 +20,13 @@
 #include "open_spiel/abseil-cpp/absl/random/random.h"
 #include "open_spiel/algorithms/get_all_states.h"
 #include "open_spiel/spiel.h"
-#include "MYpolicies/generic_policy.h"
+#include "bandits/generic_policy.h"
 
 #include <random>
 #include <iostream>
 
 using policies::GenericPolicy;
+using policies::StateAbstractionFunction;
 
 namespace open_spiel {
 namespace algorithms {
@@ -49,7 +50,10 @@ namespace algorithms {
 // (doesn't sum trace values). Parameter lambda_ determines the level
 // of bootstraping.
 
+std::string identity_function (const std::string state);
+
 class TabularQLearningSolver {
+
   static inline constexpr double kDefaultDepthLimit = -1;
   static inline constexpr double kDefaultEpsilon = 0.01;
   static inline constexpr double kDefaultLearningRate = 0.01;
@@ -57,20 +61,22 @@ class TabularQLearningSolver {
   static inline constexpr double kDefaultLambda = 0;
 
  public:
-  TabularQLearningSolver(std::shared_ptr<const Game> game);
+  TabularQLearningSolver(std::shared_ptr<const Game> game, StateAbstractionFunction func = identity_function);
 
   TabularQLearningSolver(std::shared_ptr<const Game> game, double depth_limit,
                          double epsilon, double learning_rate,
-                         double discount_factor, double lambda);
+                         double discount_factor, double lambda, StateAbstractionFunction func = identity_function);
 
-  TabularQLearningSolver(std::shared_ptr<const Game> game, GenericPolicy* policy);
+  TabularQLearningSolver(std::shared_ptr<const Game> game, GenericPolicy* policy, StateAbstractionFunction func = identity_function);
 
-  //TabularQLearningSolver(std::shared_ptr<const Game> game, GenericPolicy* policy);
+  TabularQLearningSolver(
+    std::shared_ptr<const Game> game, double learning_rate, double discount_factor, GenericPolicy* policy, StateAbstractionFunction func);
 
   void RunIteration();
 
   const absl::flat_hash_map<std::pair<std::string, Action>, double>&
   GetQValueTable() const;
+  StateAbstractionFunction GetAbstractionFunction() const;
 
  private:
   // Given a player and a state, gets the best possible action from this state
@@ -100,10 +106,11 @@ class TabularQLearningSolver {
   double lambda_;
   std::mt19937 rng_{(std::random_device())()};
   GenericPolicy* policy_;
-  std::pair<absl::flat_hash_map<std::pair<std::string, Action>, double>*, double> pair;
+  std::tuple<absl::flat_hash_map<std::pair<std::string, Action>, double>*, double, StateAbstractionFunction> tuple;
   absl::flat_hash_map<std::pair<std::string, Action>, double> values_;
   absl::flat_hash_map<std::pair<std::string, Action>, double>
       eligibility_traces_;
+  StateAbstractionFunction abstraction_func;
 };
 
 }  // namespace algorithms

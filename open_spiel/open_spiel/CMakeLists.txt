@@ -194,13 +194,21 @@ set (OPEN_SPIEL_CORE_FILES
   tensor_game.h
   utils/usage_logging.h
   utils/usage_logging.cc
-  ../MYpolicies/VBR_like_v1.h
-  ../MYpolicies/VBR_like_v1.cpp
-  ../MYpolicies/VBR_like_v2.h
-  ../MYpolicies/VBR_like_v2.cpp
-  ../MYpolicies/eps_greedy.h
-  ../MYpolicies/eps_greedy.cpp
-  ../MYpolicies/generic_policy.h
+  ../bandits/utils.h
+  ../bandits/utils.cpp
+  ../bandits/pathfinding_helper.h
+  ../bandits/pathfinding_helper.cpp
+  ../bandits/state_abstraction_functions.h
+  ../bandits/state_abstraction_functions.cpp
+  ../bandits/generic_policy.h
+  ../bandits/VBR_like_v1.h
+  ../bandits/VBR_like_v1.cpp
+  ../bandits/VBR_like_v2.h
+  ../bandits/VBR_like_v2.cpp
+  ../bandits/VBR_like_v4.h
+  ../bandits/VBR_like_v4.cpp
+  ../bandits/eps_greedy.h
+  ../bandits/eps_greedy.cpp
 )
 
 # We add the subdirectory here so open_spiel_core can #include absl.
@@ -229,13 +237,10 @@ set (OPEN_SPIEL_CORE_OBJECTS $<TARGET_OBJECTS:open_spiel_core>)
 
 set (OPEN_SPIEL_OBJECTS
   $<TARGET_OBJECTS:open_spiel_core>
-  $<TARGET_OBJECTS:bots>
   $<TARGET_OBJECTS:games>
   $<TARGET_OBJECTS:game_transforms>
-  $<TARGET_OBJECTS:bridge_double_dummy_solver>
   $<TARGET_OBJECTS:algorithms>
   $<TARGET_OBJECTS:utils>
-  $<TARGET_OBJECTS:tests>
 )
 if (OPEN_SPIEL_BUILD_WITH_HIGC)
   set(OPEN_SPIEL_OBJECTS ${OPEN_SPIEL_OBJECTS}
@@ -308,11 +313,9 @@ endif()
 include_directories(..)
 
 add_subdirectory (algorithms)
-add_subdirectory (bots)
 add_subdirectory (examples)
 add_subdirectory (games)
 add_subdirectory (game_transforms)
-add_subdirectory (contrib)
 
 if (OPEN_SPIEL_BUILD_WITH_GO)
   add_subdirectory(go)
@@ -323,12 +326,6 @@ if (OPEN_SPIEL_BUILD_WITH_RUST)
 endif()
 
 if (OPEN_SPIEL_BUILD_WITH_PYTHON)
-  add_subdirectory (python)
-  # HIGC needs pyspiel.so and corresponding PYTHONPATH to be set
-  # in order to run its tests.
-  if (OPEN_SPIEL_BUILD_WITH_HIGC)
-    add_subdirectory (higc)
-  endif()
 endif()
 
 add_subdirectory (utils)
@@ -373,4 +370,3 @@ if (BUILD_SHARED_LIB)
   )
 endif()
 
-add_subdirectory (tests)

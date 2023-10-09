@@ -21,6 +21,8 @@
 #include <utility>
 
 #include "open_spiel/abseil-cpp/absl/container/flat_hash_map.h"
+#include "open_spiel/abseil-cpp/absl/random/distributions.h"
+#include "open_spiel/abseil-cpp/absl/random/random.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_cat.h"
 #include "open_spiel/game_parameters.h"
 #include "open_spiel/spiel.h"
@@ -59,7 +61,8 @@ const GameType kGameType{
      {"group_reward", GameParameter(kDefaultGroupReward)},
      {"players", GameParameter(kDefaultNumPlayers)},
      {"solve_reward", GameParameter(kDefaultSolveReward)},
-     {"step_reward", GameParameter(kDefaultStepReward)}}};
+     {"step_reward", GameParameter(kDefaultStepReward)},
+     {"random_move_chance", GameParameter(kDefaultRandomMoveChance)}}};
 
 std::shared_ptr<const Game> Factory(const GameParameters& params) {
   return std::shared_ptr<const Game>(new PathfindingGame(params));
@@ -172,10 +175,21 @@ void PathfindingState::DoApplyActions(const std::vector<Action>& moves) {
   SPIEL_CHECK_EQ(moves.size(), num_players_);
   SPIEL_CHECK_EQ(cur_player_, kSimultaneousPlayerId);
 
+  std::random_device rd;
+  std::mt19937 rng_(rd());
+
   std::fill(rewards_.begin(), rewards_.end(), 0.0);
   std::fill(contested_players_.begin(), contested_players_.end(), 0);
 
   actions_ = moves;
+
+  if (absl::Uniform(rng_, 0.0, 1.0) < parent_game_.random_move_chance()) { //Inseriamo un errore nella selezione dell'azione
+    if (absl::Uniform(rng_, 0.0, 1.0) <= 0.5)
+      actions_[0] = (actions_[0]-1)%5;
+    else
+      actions_[0] = (actions_[0]+1)%5;
+  }
+
   if (num_players_ == 1) {
     ResolvePlayerAction(0);
   } else {
@@ -235,8 +249,6 @@ void PathfindingState::ResolvePlayerAction(Player p) {
     rewards_[p] += parent_game_.step_reward();
     returns_[p] += parent_game_.step_reward();
   }
-
-  std::cout<<"REWARD IN GAME "<<rewards_[0]<<std::endl;
 
   grid_[cur_coord.first][cur_coord.second] = kEmpty;
   grid_[next_coord.first][next_coord.second] = p;
@@ -526,7 +538,6 @@ bool PathfindingState::IsTerminal() const {
 }
 
 std::vector<double> PathfindingState::Rewards() const {
-  std::cout<<"REWARD RITORNATO "<<rewards_[0]<<std::endl;
   return rewards_;
 }
 
@@ -604,6 +615,7 @@ PathfindingGame::PathfindingGame(const GameParameters& params)
       solve_reward_(
           ParameterValue<double>("solve_reward", kDefaultSolveReward)),
       step_reward_(ParameterValue<double>("step_reward", kDefaultStepReward)),
+      random_move_chance_(ParameterValue<double>("random_move_chance", kDefaultRandomMoveChance)),
       legal_actions_({kStay, kLeft, kUp, kRight, kDown}) {
   // Override the number of players from the grid specification.
   //
