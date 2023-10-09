@@ -28,7 +28,6 @@ pyspiel.egg-info/
 .build
 
  # External git modules
-open_spiel/abseil-cpp/
 open_spiel/eigen/libeigen/
 open_spiel/libnop/libnop/
 open_spiel/games/bridge/double_dummy_solver/
