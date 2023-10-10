@@ -44,7 +44,7 @@ namespace policies {
 
       virtual void reward_update (const State& state, Action& action, double reward);
 
-      VBRLikePolicyV2(double gamma = 2, double alpha = 0.1, bool history_based = false);
+      VBRLikePolicyV2(double gamma = 2, double alpha = 0.01, bool history_based = false);
 
       virtual void setQTableStructure(absl::flat_hash_map<std::pair<std::string, Action>, double>* table, double disc_factor, double learn_rate, StateAbstractionFunction func) override;
 

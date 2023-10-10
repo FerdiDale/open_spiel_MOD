@@ -94,12 +94,12 @@ namespace policies {
   VBRLikePolicyV4::VBRLikePolicyV4(double gamma, double alpha, bool history_based){
     confidence_parameter = gamma;
     prev_history_based = history_based;
-    alpha = learning_rate;
+    learning_rate = alpha;
   }
 
   std::string VBRLikePolicyV4::toString () const {
     std::stringstream s;
-    s << "VBRLike4 (" << (prev_history_based ? "history" : "no history") << ") alfa(" << learning_rate << ")";
+    s << "VBRThompsonLike (" << (prev_history_based ? "history" : "no history") << ") alfa(" << learning_rate << ")";
     return s.str();
   }
 
