@@ -2,7 +2,7 @@
 
 path_o_spiel_src="$(pwd)/../.."
 
-LD_LIBRARY_PATH = "$path_o_spiel_src/build"
+LD_LIBRARY_PATH="$path_o_spiel_src/build"
 
 export LD_LIBRARY_PATH
 
