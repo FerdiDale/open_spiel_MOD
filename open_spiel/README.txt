@@ -12,9 +12,9 @@ sudo apt install clang
 
 //Execute the building script "BUILD.sh" making automatically a new "build" directory
 
-//Execute the compiling script "COMPILE.sh", creating the "qlearn" main executable
+//BEFORE COMPILING, THE SYSTEM VARIABLE "LD_LIBRARY_PATH" MUST BE SET TO THE AFOREMENTIONED BUILD FOLDER PATH
 
-//BEFORE EXECUTION, THE SYSTEM VARIABLE "LD_LIBRARY_PATH" MUST BE SET TO THE AFOREMENTIONED BUILD FOLDER PATH
+//Execute the compiling script "COMPILE.sh", creating the "qlearn" main executable
 
 //Execute the tests
 
