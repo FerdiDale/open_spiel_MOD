@@ -142,10 +142,8 @@ absl::flat_hash_map<int, std::vector<std::pair<int, double>>> TestGenericGame
   for (int algo_id = 0; algo_id < vec_algos.size();  algo_id++) {
     for (int phase = 0; phase < n_phases; phase++) { //Ripetiamo il test in n_phases fasi per notare l'evoluzione dei risultati al miglioramento della tabella
 
-      std::cout<<"FASE NUMERO "<<phase+1<<std::endl;
-
       for (int iter = 0; iter < n_training; iter++) { //Eseguiamo n_training iterazioni in cui addestriamo l'agente
-        std::cout<<iter<<std::endl;
+        std::cout<<"FASE NUMERO "<<phase+1<<" ITERAZIONE NUMERO "<<iter+1<<std::endl;
         vec_algos[algo_id]->RunIteration();
       }
 
@@ -162,15 +160,10 @@ absl::flat_hash_map<int, std::vector<std::pair<int, double>>> TestGenericGame
             state->ApplyAction(random_action);
           }
           else {
-            std::cout<<"STATO "<<abstraction_func(state->ToString())<<std::endl;
-            for (Action a : state->LegalActions()) {
-              std::cout<<"AZIONE "<<a<<" QVALUE "<<QTable[{abstraction_func(state->ToString()), a}]<<std::endl;
-            }
             Action optimal_action = GetOptimalAction(&QTable, *state, abstraction_func);
             state->ApplyAction(optimal_action);
           }
         }
-        std::cout<<"RITORNO "<<state->Returns()[0]<<std::endl;
         vec_returns.push_back(state->Returns()[0]);
       }
 
@@ -187,7 +180,6 @@ absl::flat_hash_map<int, std::vector<std::pair<int, double>>> TestGenericGame
             vec_passi.push_back(horizon);
           }
           else {
-            std::cout<<"PASSI "<<((success_reward-ret)/penalty)+1.0<<std::endl;
             vec_passi.push_back(((success_reward-ret)/penalty)+1.0);
           }
         }
@@ -195,7 +187,6 @@ absl::flat_hash_map<int, std::vector<std::pair<int, double>>> TestGenericGame
         double avg = 0;
         for (double n_passi : vec_passi) {
           avg+=n_passi;
-          std::cout<<"MEDIA "<<n_passi<<std::endl;
         }
         avg/=vec_passi.size();
         phase_scores[algo_id].push_back({phase+1, avg});
@@ -304,26 +295,18 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
 
   }
 
-  for (int algo = 0; algo < results.size(); algo++) {
-    absl::flat_hash_map<int, std::vector<double>>& map = results.at(algo);
-    for (int phase = 1; phase <= map.size(); phase++) { //Le fasi sono numerate da 1 piuttosto che da 0
-      std::vector<double>& phase_results = map.at(phase);
-      for (int i = 0; i < phase_results.size(); i++)
-        std::cout<<"ALGORITMO "<< algo <<" FASE "<<phase<<" VALORE "<<phase_results[i]<<std::endl;
-    }
-  }
-
   double baseline_value = baseline_wins/((double)(n_playing*n_reps*n_phases));
 
   Gnuplot gp;
-  gp << "set terminal png size 1800,900\n";
+  gp << "set terminal pngcairo size 1800,900\n";
+  std::stringstream basename;
   if (game_name == "pathfinding") {
-    gp << "set output '"<<game_name<<":"<<n_rows<<"*"<<n_columns<<"ratio("<<wall_ratio<<")horizon("<<horizon<<")random_chance("<<random_move_chance<<")"<<
-    n_reps<<"rep, ("<<n_training<<") ["<<tag<<"].png'\n";
+    basename << game_name<<":"<<n_rows<<"*"<<n_columns<<"ratio("<<wall_ratio<<")horizon("<<horizon<<")random_chance("<<random_move_chance<<")"<<
+    n_reps<<"rep, ("<<n_training<<") ["<<tag<<"]";
   } else {
-    gp << "set output '"<<game_name<<":"<<
-    n_reps<<"rep, ("<<n_training<<") ["<<tag<<"].png'\n";
+    basename <<game_name<<":"<<n_reps<<"rep, ("<<n_training<<") ["<<tag<<"]";
   }
+  gp << "set output '"<< basename.str() << ".png'\n";
   gp << "set title '"<<game_name<<"'\n";
   gp << "set xlabel 'fase'\n";
    if (game_name == "pathfinding") {
@@ -344,7 +327,7 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
 
   gp << "set key outside\n";
 
-  // gp<<"set ytics add (";
+  // gp<<"set ytics add ("; //Codice per aggiungere un tic sull'asse delle y per ogni valore inserito, può risultare troppo confusionario in alcuni test
   // for (int algo = 0; algo < results.size(); algo++) {
   //   absl::flat_hash_map<int, std::vector<double>>& map = results.at(algo);
   //   for (int phase = 1; phase <= map.size(); phase++) { //Le fasi sono numerate da 1 piuttosto che da 0
@@ -357,18 +340,55 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
 
   gp << "set grid\n";
   gp << "set arrow from 1,"<< baseline_value <<" to 10,"<< baseline_value <<" nohead lt 2 lc 'black' dt 2\n"; //La baseline essendo una linea orizzontale possiamo mapparla con una arrow
-
-  gp << "set palette rgb 33,13,10 \n";
+  gp << "set palette model HSV defined ( 0 0 1 1, 1 1 1 1 ) \n";
 
   gp << "plot ";
 
+  double dt;
+  double n_eps = 0;
+  double n_vbr = 0;
+  double n_thompson = 0;
+  double i_eps = -1;
+  double i_vbr = -1;
+  double i_thompson = -1;
+  double palette_frac_value = 0.0;
+
   for (int i = 0; i < policy_vec.size(); i++) {
-    gp << "'-' with yerrorlines title '" + policy_vec[i]->toString() + "' lt 1 lc palette frac "<< (i+1.0)/policy_vec.size() <<" dt 2 pt 7, ";
+    if (policy_vec[i]->toString().find("Epsilon") != std::string::npos) {
+      n_eps++;
+    } else if (policy_vec[i]->toString().find("Thompson") != std::string::npos) {
+      n_thompson++;
+    }
+    else  {
+      n_vbr++;
+    }
+
+  }
+
+  for (int i = 0; i < policy_vec.size(); i++) {
+    if (policy_vec[i]->toString().find("Epsilon") != std::string::npos) {
+      dt = 2;
+      i_eps++;
+      palette_frac_value = i_eps/n_eps;
+    } else if (policy_vec[i]->toString().find("Thompson") != std::string::npos) {
+      dt = 3;
+      i_thompson++;
+      palette_frac_value = i_thompson/n_thompson;
+    }
+    else  {
+      dt = 1;
+      i_vbr++;
+      palette_frac_value = i_vbr/n_vbr;
+    }
+
+    gp << "'-' with yerrorlines title '" + policy_vec[i]->toString() + "' lt 1 lc palette frac "<< palette_frac_value <<" dt "<<dt<<" pt 7, ";
+
   }
 
   gp << "1/0 t 'Baseline (random)' lt 2 lc 'black' dt 2\n"; //Creiamo una linea fittizia (1/0 non essendo calcolabile creerà una linea vuota)
             //solo per avere un nome per la baseline nella legenda (Le arrow non possono avere un nome)
 
+  std::ofstream file_dati(basename.str() + ".txt");
 
   for (int algo = 0; algo < results.size(); algo++) {
     absl::flat_hash_map<int, std::vector<double>>& map = results.at(algo);
@@ -382,12 +402,13 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
       else
         phase_value = phase+(0.04*algo)+0.01;
       gp << phase_value << " " << avg << " " << st_dev << "\n";
-      std::cout << phase_value << " " << avg << " " << st_dev << "\n";
+      file_dati<< phase_value << " " << avg << " " << st_dev << "\n"; //Stampiamo i dati in caso l'utente voglia processarli o controllarli
 
     }
     gp << "e\n";
   }
 
+  file_dati.close();
 }
 
 int main(int argc, char** argv) {
@@ -395,10 +416,15 @@ int main(int argc, char** argv) {
   pathfinding_parameters p_params1R = {25, 5, 5, 0.3, 0.5};
   pathfinding_parameters p_params2 = {25, 5, 5, 0.5, 0};
   pathfinding_parameters p_params2R = {25, 5, 5, 0.5, 0.5};
+
   test_parameters t_params1 = {20, 10, 30, 1, identity, "id EPS"};
   test_parameters t_params2 = {20, 10, 100, 100, identity, "id rand EPS"};
   test_parameters t_params3 = {20, 10, 100, 1, visibility_limit_no_distinction, "limit no dis EPS"};
   test_parameters t_params4 = {20, 10, 100, 1, visibility_limit_with_distinction, "limit dis EPS"};
+
+  test_parameters t_params5 = {20, 10, 100, 1000, identity, "id"};
+  test_parameters t_params6 = {20, 10, 1000, 1000, identity, "id"};
+
   qlearning_parameters q_params1;
   std::vector<GenericPolicy*> vecEps;
   vecEps.push_back(new EpsilonGreedyPolicy(0.01));
@@ -412,6 +438,7 @@ int main(int argc, char** argv) {
   vecEps.push_back(new EpsilonGreedyPolicy(0.8));
   vecEps.push_back(new EpsilonGreedyPolicy(0.9));
   vecEps.push_back(new EpsilonGreedyPolicy(1));
+
   // TestGenericGameMulti("pathfinding", vecEps, t_params1, q_params1, p_params1);
   // TestGenericGameMulti("pathfinding", vecEps, t_params2, q_params1, p_params1R);
   // TestGenericGameMulti("pathfinding", vecEps, t_params3, q_params1, p_params1);
@@ -421,10 +448,51 @@ int main(int argc, char** argv) {
   // TestGenericGameMulti("pathfinding", vecEps, t_params3, q_params1, p_params2);
   // TestGenericGameMulti("pathfinding", vecEps, t_params4, q_params1, p_params2);
 
-
-  test_parameters t_params5 = {20, 10, 1000, 1000, identity, "id"};
   // TestGenericGameMulti("blackjack", vecEps, t_params5, q_params1);
-  TestGenericGameMulti("tic_tac_toe", vecEps, t_params5, q_params1);
-  
+  // TestGenericGameMulti("blackjack", vecEps, t_params6, q_params1);
+  // TestGenericGameMulti("tic_tac_toe", vecEps, t_params6, q_params1);
+
+  std::vector<GenericPolicy*> vecVarioBase;
+  vecVarioBase.push_back(new VBRLikePolicyV2(2, 0.01, true));
+  vecVarioBase.push_back(new VBRLikePolicyV2(2, 0.1, true));
+  vecVarioBase.push_back(new VBRLikePolicyV2(2, 0.3, true));
+  vecVarioBase.push_back(new VBRLikePolicyV2(2, 0.5, true));
+  vecVarioBase.push_back(new VBRLikePolicyV2(2, 0.7, true));
+  vecVarioBase.push_back(new VBRLikePolicyV2(2, 0.9, true));
+  vecVarioBase.push_back(new VBRLikePolicyV2(2, 1, false));
+  vecVarioBase.push_back(new VBRLikePolicyV4(2, 1, false));
+  vecVarioBase.push_back(new EpsilonGreedyPolicy(0.01));
+
+  std::vector<GenericPolicy*> vecVario8 (vecVarioBase.begin(), vecVarioBase.end());
+  vecVario8.push_back(new EpsilonGreedyPolicy(0.8));
+  std::vector<GenericPolicy*> vecVario2 (vecVarioBase.begin(), vecVarioBase.end());
+  vecVario2.push_back(new EpsilonGreedyPolicy(0.2));
+  std::vector<GenericPolicy*> vecVario011 (vecVarioBase.begin(), vecVarioBase.end());
+  vecVario011.push_back(new EpsilonGreedyPolicy(0.01));
+  vecVario011.push_back(new EpsilonGreedyPolicy(0.1));
+  std::vector<GenericPolicy*> vecVario68 (vecVarioBase.begin(), vecVarioBase.end());
+  vecVario68.push_back(new EpsilonGreedyPolicy(0.6));
+  vecVario68.push_back(new EpsilonGreedyPolicy(0.8));
+  std::vector<GenericPolicy*> vecVario78 (vecVarioBase.begin(), vecVarioBase.end());
+  vecVario78.push_back(new EpsilonGreedyPolicy(0.7));
+  vecVario78.push_back(new EpsilonGreedyPolicy(0.8));
+  std::vector<GenericPolicy*> vecVario79 (vecVarioBase.begin(), vecVarioBase.end());
+  vecVario79.push_back(new EpsilonGreedyPolicy(0.7));
+  vecVario79.push_back(new EpsilonGreedyPolicy(0.9));
+  std::vector<GenericPolicy*> vecVario4 (vecVarioBase.begin(), vecVarioBase.end());
+  vecVario4.push_back(new EpsilonGreedyPolicy(0.4));
+
+  TestGenericGameMulti("pathfinding", vecVario011, t_params1, q_params1, p_params1);
+  // TestGenericGameMulti("pathfinding", vecVario78, t_params2, q_params1, p_params1R);
+  // TestGenericGameMulti("pathfinding", vecVario68, t_params3, q_params1, p_params1);
+  // TestGenericGameMulti("pathfinding", vecVario79, t_params4, q_params1, p_params1);
+  // TestGenericGameMulti("pathfinding", vecVario011, t_params1, q_params1, p_params2);
+  // TestGenericGameMulti("pathfinding", vecVario79, t_params2, q_params1, p_params2R);
+  // TestGenericGameMulti("pathfinding", vecVario8, t_params3, q_params1, p_params2);
+  // TestGenericGameMulti("pathfinding", vecVario2, t_params4, q_params1, p_params2);
+
+  // TestGenericGameMulti("blackjack", vecVario4, t_params5, q_params1);
+  // TestGenericGameMulti("blackjack", vecVario4, t_params6, q_params1);
+  // TestGenericGameMulti("tic_tac_toe", vecVario4, t_params6, q_params1);
   return 0;
 }

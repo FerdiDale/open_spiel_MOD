@@ -212,11 +212,6 @@ TabularQLearningSolver::TabularQLearningSolver(
 
 const absl::flat_hash_map<std::pair<std::string, Action>, double>&
 TabularQLearningSolver::GetQValueTable() const {
-  // for (auto& [k, v] : values_) {
-  //   std::cout<<"STATO"<<std::endl;
-  //   std::cout<<k.first<<std::endl;
-  //   std::cout<<"AZIONE "<<k.second<<" QVALUE "<<v<<std::endl;
-  // }
   return values_;
 }
 
@@ -253,20 +248,13 @@ void TabularQLearningSolver::RunIteration() {
     std::string key = abstraction_func(curr_state->ToString());
 
     double new_q_value = reward + discount_factor_ * next_q_value;
-    // std::cout<<"REWARD "<<reward<<" NEXT_Q_VALUE "<<next_q_value<<std::endl;
 
     double prev_q_val = values_[{key, curr_action}];
     if (lambda_ == 0) {
-
-      std::cout<<"STATO "<<curr_state->ToString()<<std::endl;
-      for (Action a : curr_state->LegalActions()) {
-        std::cout<<"AZIONE POSSIBILE "<<a<<" QVALUE "<<values_[{key, a}]<<std::endl;
-      }
       // If lambda_ is equal to zero run Q-learning as usual.
       // It's not necessary to update eligibility traces.
       values_[{key, curr_action}] +=
           learning_rate_ * (new_q_value - prev_q_val);
-      std::cout<<" SCELGO AZIONE "<<curr_action<<" NUOVO QVALUE "<<values_[{key, curr_action}]<<std::endl;
     } else {
       double lambda =
           player != next_state->CurrentPlayer() ? -lambda_ : lambda_;
