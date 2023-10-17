@@ -56,13 +56,10 @@ bool traversable_maze_check(std::vector<std::vector<char>> maze, std::pair<int, 
     }
   }
   bool ret = DFS (maze, &colors, source);
-  std::cout<<"LABIRINTO"<<std::endl<<maze_to_string(maze)<<ret<<std::endl;
   return ret;
 }
 
 std::string maze_gen (int n_rows , int n_columns, double wall_ratio) {
-
-  std::cout<<n_rows<<" "<<n_columns<<" "<<wall_ratio<<std::endl;
 
   std::random_device rd;
   std::mt19937 rng_(rd());

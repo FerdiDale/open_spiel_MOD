@@ -4,8 +4,6 @@ namespace policies {
   
 std::string visibility_limit_no_distinction(const std::string state_str) {
 
-  std::cout<<"ORIGINALE "<<std::endl<<state_str<<std::endl<<std::endl;
-
   absl::flat_hash_map<std::pair<int, int>, char> grid_layout;
 
   int curr_column = 0;
@@ -60,8 +58,6 @@ std::string visibility_limit_no_distinction(const std::string state_str) {
     ret+=charS;
   else
     ret+='*';
-
-  std::cout<<"ASTRAZIONE "<<std::endl<<ret<<std::endl<<std::endl;
 
   return ret;
 

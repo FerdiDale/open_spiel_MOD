@@ -35,7 +35,7 @@
 #include "bandits/state_abstraction_functions.h"
 
 #include <iostream>
-#include "gnuplot-iostream.h"
+#include <fstream>
 
 using policies::GenericPolicy;
 using policies::EpsilonGreedyPolicy;
@@ -297,8 +297,26 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
 
   double baseline_value = baseline_wins/((double)(n_playing*n_reps*n_phases));
 
-  Gnuplot gp;
-  gp << "set terminal pngcairo size 1800,900\n";
+  double max_y;
+  double min_y;
+
+  for (int algo = 0; algo < results.size(); algo++) {
+  absl::flat_hash_map<int, std::vector<double>>& map = results.at(algo);
+    for (int phase = 1; phase <= map.size(); phase++) { //Le fasi sono numerate da 1 piuttosto che da 0
+      std::vector<double>& phase_results = map.at(phase);
+      double avg = average_of(phase_results);
+      if (algo == 0 && phase == 1) {
+        max_y = min_y = avg;
+      }
+      else if (avg < min_y) {
+        min_y = avg;
+      }
+      else if (avg > max_y) {
+        max_y = avg;
+      }
+    }
+  } 
+
   std::stringstream basename;
   if (game_name == "pathfinding") {
     basename << game_name<<":"<<n_rows<<"*"<<n_columns<<"ratio("<<wall_ratio<<")horizon("<<horizon<<")random_chance("<<random_move_chance<<")"<<
@@ -306,43 +324,36 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
   } else {
     basename <<game_name<<":"<<n_reps<<"rep, ("<<n_training<<") ["<<tag<<"]";
   }
-  gp << "set output '"<< basename.str() << ".png'\n";
-  gp << "set title '"<<game_name<<"'\n";
-  gp << "set xlabel 'fase'\n";
-   if (game_name == "pathfinding") {
-    gp << "set ylabel 'n. medio di passi'\n";
-  } else {
-    gp << "set ylabel 'pr. media di vincita'\n";
-  }
-  gp << "set datafile separator ' '\n";
+  std::ofstream file_dati("gnu " + basename.str() + ".txt");
 
-  gp << "set xrange [" << 1 << ":" << n_phases << "]\n";
+  file_dati << "set terminal pngcairo size 1800,900\n";
+  file_dati << "set output '"<< basename.str() << ".png'\n";
+  file_dati << "set title '"<<game_name<<"'\n";
+  file_dati << "set xlabel 'fase'\n";
+   if (game_name == "pathfinding") {
+    file_dati << "set ylabel 'n. medio di passi'\n";
+  } else {
+    file_dati << "set ylabel 'pr. media di vincita'\n";
+  }
+  file_dati << "set datafile separator ' '\n";
+
+  file_dati << "set xrange [" << 1 << ":" << n_phases << "]\n";
   if (game_name == "pathfinding") {
-    gp << "set yrange [" << horizon << ":" << 1 << "]\n";
+    file_dati << "set yrange [" << (ceil(max_y/5))*5 << ":" << (floor(min_y/5))*5 << "]\n";
+    file_dati << "set ytics add (\"" << min_y << "\" " << min_y << " ,\"" << max_y << "\" " << max_y << ")\n";
   }
   else {
-    gp << "set yrange [" << 0 << ":" << 1 << "]\n";
-    gp << "set ytics 0.1\n";
+    file_dati << "set yrange [" << 0 << ":" << 1 << "]\n";
+    file_dati << "set ytics 0.1\n";
   }
 
-  gp << "set key outside\n";
+  file_dati << "set key outside\n";
 
-  // gp<<"set ytics add ("; //Codice per aggiungere un tic sull'asse delle y per ogni valore inserito, può risultare troppo confusionario in alcuni test
-  // for (int algo = 0; algo < results.size(); algo++) {
-  //   absl::flat_hash_map<int, std::vector<double>>& map = results.at(algo);
-  //   for (int phase = 1; phase <= map.size(); phase++) { //Le fasi sono numerate da 1 piuttosto che da 0
-  //     std::vector<double>& phase_results = map.at(phase);
-  //     double avg = average_of(phase_results);
-  //     gp<<avg<<", ";
-  //   }
-  // }
-  // gp << ")\n";
+  file_dati << "set grid\n";
+  file_dati << "set arrow from 1,"<< baseline_value <<" to 10,"<< baseline_value <<" nohead lt 2 lc 'black' dt 2\n"; //La baseline essendo una linea orizzontale possiamo mapparla con una arrow
+  file_dati << "set palette model HSV defined ( 0 0 1 1, 1 1 1 1 ) \n";
 
-  gp << "set grid\n";
-  gp << "set arrow from 1,"<< baseline_value <<" to 10,"<< baseline_value <<" nohead lt 2 lc 'black' dt 2\n"; //La baseline essendo una linea orizzontale possiamo mapparla con una arrow
-  gp << "set palette model HSV defined ( 0 0 1 1, 1 1 1 1 ) \n";
-
-  gp << "plot ";
+  file_dati << "plot ";
 
   double dt;
   double n_eps = 0;
@@ -381,14 +392,12 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
       palette_frac_value = i_vbr/n_vbr;
     }
 
-    gp << "'-' with yerrorlines title '" + policy_vec[i]->toString() + "' lt 1 lc palette frac "<< palette_frac_value <<" dt "<<dt<<" pt 7, ";
+    file_dati << "'-' with yerrorlines title '" + policy_vec[i]->toString() + "' lt 1 lc palette frac "<< palette_frac_value <<" dt "<<dt<<" pt 7, ";
 
   }
 
-  gp << "1/0 t 'Baseline (random)' lt 2 lc 'black' dt 2\n"; //Creiamo una linea fittizia (1/0 non essendo calcolabile creerà una linea vuota)
+  file_dati << "1/0 t 'Baseline (random)' lt 2 lc 'black' dt 2\n"; //Creiamo una linea fittizia (1/0 non essendo calcolabile creerà una linea vuota)
             //solo per avere un nome per la baseline nella legenda (Le arrow non possono avere un nome)
-
-  std::ofstream file_dati(basename.str() + ".txt");
 
   for (int algo = 0; algo < results.size(); algo++) {
     absl::flat_hash_map<int, std::vector<double>>& map = results.at(algo);
@@ -401,14 +410,14 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
         phase_value = phase-(0.04*algo)-0.01;
       else
         phase_value = phase+(0.04*algo)+0.01;
-      gp << phase_value << " " << avg << " " << st_dev << "\n";
-      file_dati<< phase_value << " " << avg << " " << st_dev << "\n"; //Stampiamo i dati in caso l'utente voglia processarli o controllarli
+      file_dati << phase_value << " " << avg << " " << st_dev << "\n";
 
     }
-    gp << "e\n";
+    file_dati << "e\n";
   }
 
   file_dati.close();
+
 }
 
 int main(int argc, char** argv) {
@@ -467,9 +476,8 @@ int main(int argc, char** argv) {
   vecVario8.push_back(new EpsilonGreedyPolicy(0.8));
   std::vector<GenericPolicy*> vecVario2 (vecVarioBase.begin(), vecVarioBase.end());
   vecVario2.push_back(new EpsilonGreedyPolicy(0.2));
-  std::vector<GenericPolicy*> vecVario011 (vecVarioBase.begin(), vecVarioBase.end());
-  vecVario011.push_back(new EpsilonGreedyPolicy(0.01));
-  vecVario011.push_back(new EpsilonGreedyPolicy(0.1));
+  std::vector<GenericPolicy*> vecVario01 (vecVarioBase.begin(), vecVarioBase.end());
+  vecVario01.push_back(new EpsilonGreedyPolicy(0.1));
   std::vector<GenericPolicy*> vecVario68 (vecVarioBase.begin(), vecVarioBase.end());
   vecVario68.push_back(new EpsilonGreedyPolicy(0.6));
   vecVario68.push_back(new EpsilonGreedyPolicy(0.8));
@@ -482,11 +490,11 @@ int main(int argc, char** argv) {
   std::vector<GenericPolicy*> vecVario4 (vecVarioBase.begin(), vecVarioBase.end());
   vecVario4.push_back(new EpsilonGreedyPolicy(0.4));
 
-  TestGenericGameMulti("pathfinding", vecVario011, t_params1, q_params1, p_params1);
-  // TestGenericGameMulti("pathfinding", vecVario78, t_params2, q_params1, p_params1R);
+  TestGenericGameMulti("pathfinding", vecVario01, t_params1, q_params1, p_params1);
+  TestGenericGameMulti("pathfinding", vecVario78, t_params2, q_params1, p_params1R);
   // TestGenericGameMulti("pathfinding", vecVario68, t_params3, q_params1, p_params1);
   // TestGenericGameMulti("pathfinding", vecVario79, t_params4, q_params1, p_params1);
-  // TestGenericGameMulti("pathfinding", vecVario011, t_params1, q_params1, p_params2);
+  // TestGenericGameMulti("pathfinding", vecVario01, t_params1, q_params1, p_params2);
   // TestGenericGameMulti("pathfinding", vecVario79, t_params2, q_params1, p_params2R);
   // TestGenericGameMulti("pathfinding", vecVario8, t_params3, q_params1, p_params2);
   // TestGenericGameMulti("pathfinding", vecVario2, t_params4, q_params1, p_params2);

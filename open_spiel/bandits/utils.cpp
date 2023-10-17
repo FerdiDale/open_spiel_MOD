@@ -15,8 +15,6 @@ namespace policies {
         variance+=(pow((list[i]-mean),2));
     }
 
-    // std::cout<<"VARIANZA "<<variance<<" MEDIA "<<mean<<" TAGLIA LISTA "<<list.size()<<std::endl;
-
     return (sqrt(variance))/(list.size()-1);
   }
 

@@ -94,7 +94,6 @@ namespace policies {
       else
         new_observation = reward + discount_factor * max_next_q_value;
 
-    //   std::cout<<" OLD MEAN" <<old_mean<< " N REWARDS "<<n_rewards<< " REWARD "<<reward<<" NEW MEAN "<<(old_mean*n_rewards/(n_rewards+1.0))+(reward/(n_rewards+1.0))<<std::endl;
       tab_[{abstraction_func(state.ToString()), action}].push_back(new_observation);
   }
 
