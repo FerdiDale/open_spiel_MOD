@@ -11,6 +11,7 @@
 #include "open_spiel/abseil-cpp/absl/random/random.h"
 
 #include <iostream>
+#include <queue>
 
 namespace policies {
 
@@ -24,6 +25,9 @@ namespace policies {
 
   std::string maze_gen (int n_rows = 5, int n_columns = 5, double wall_ratio = 0.2);
 
+  std::vector<std::vector<char>> parseStringGrid(std::string grid_str);
+
+  int BFS (std::string maze);
 }
 
 #endif

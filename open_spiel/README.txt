@@ -1,3 +1,8 @@
+Git repository containing code written for research purposes about Variance Based MAB Algoirthms used in Reinforcement Learning. The base code is taken from OpenSpiel framework.
+
+
+Instructions for use:
+
 //Install CMAKE
 
 sudo apt install cmake

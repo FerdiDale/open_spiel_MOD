@@ -605,9 +605,8 @@ int PathfindingGame::NumPlayers() const { return num_players_; }
 
 PathfindingGame::PathfindingGame(const GameParameters& params)
     : SimMoveGame(kGameType, params),
-      grid_spec_(ParseGrid(ParameterValue<std::string>(
-          "grid", std::string(kDefaultSingleAgentGrid)),
-                           kGameType.max_num_players)),
+      string_grid(ParameterValue<std::string>(
+          "grid", std::string(kDefaultSingleAgentGrid))),
       num_players_(ParameterValue<int>("players", kDefaultNumPlayers)),
       horizon_(ParameterValue<int>("horizon", kDefaultHorizon)),
       group_reward_(ParameterValue<double>("group_reward",
@@ -617,13 +616,18 @@ PathfindingGame::PathfindingGame(const GameParameters& params)
       step_reward_(ParameterValue<double>("step_reward", kDefaultStepReward)),
       random_move_chance_(ParameterValue<double>("random_move_chance", kDefaultRandomMoveChance)),
       legal_actions_({kStay, kLeft, kUp, kRight, kDown}) {
+
   // Override the number of players from the grid specification.
   //
   // Currently, the game only supports specific grids, so this will always be
   // overridden. This will change in a future version with random grids.
+
+  grid_spec_ = (ParseGrid(string_grid,kGameType.max_num_players));
+
   if (grid_spec_.num_players >= 1) {
     num_players_ = grid_spec_.num_players;
   }
+
 }
 
 }  // namespace pathfinding

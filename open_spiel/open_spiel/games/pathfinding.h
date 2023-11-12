@@ -23,6 +23,7 @@
 #include "open_spiel/simultaneous_move_game.h"
 #include "open_spiel/spiel.h"
 #include "open_spiel/spiel_globals.h"
+#include "bandits/pathfinding_helper.h"
 
 namespace open_spiel {
 namespace pathfinding {
@@ -125,6 +126,7 @@ class PathfindingGame : public SimMoveGame {
   double step_reward_;
   std::vector<Action> legal_actions_;
   double random_move_chance_;
+  std::string string_grid;
 };
 
 class PathfindingState : public SimMoveState {

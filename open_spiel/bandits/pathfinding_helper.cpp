@@ -10,6 +10,7 @@ std::vector<std::pair<int, int>> possible_next_positions(std::vector<std::vector
   std::vector<std::pair<int, int>> ret;
   int x = curr.first;
   int y = curr.second;
+
   if (x != 0 && maze[x-1][y] != '*')
     ret.push_back({x-1, y});
   if (y != 0 && maze[x][y-1] != '*')
@@ -105,6 +106,76 @@ std::string maze_gen (int n_rows , int n_columns, double wall_ratio) {
 
   return (maze_to_string(maze));
 
+}
+
+std::vector<std::vector<char>> parseStringGrid(std::string grid_str, std::pair<int, int>& start_point, std::pair<int, int>& end_point) {
+  std::vector<std::vector<char>> grid_vec;
+  int row = 0;
+  int col = 0;
+  std::vector<char> new_row;
+  grid_vec.push_back(new_row);
+
+  for (auto c : grid_str) {
+    if (c == 'a') {
+      start_point = {row, col};
+    }
+    if (c == 'A') {
+      end_point = {row, col};
+    }
+    if (c == '\n') {
+      row += 1;
+      col = 0;
+      grid_vec.push_back(new_row);
+    } else {
+      grid_vec[row].push_back(c);
+      col += 1;
+    }
+  }
+
+  if (grid_str.back() == '\n')
+    grid_vec.pop_back();
+
+  return grid_vec;
+}
+
+int BFS (std::string maze) {
+  std::pair<int, int> starting_position;
+  std::pair<int, int> destination;
+  std::vector<std::vector<char>> grid_vec = parseStringGrid(maze, starting_position, destination);
+  int n_rows = grid_vec.size();
+  int n_columns = grid_vec[0].size();
+  char color [n_rows][n_columns];
+  int dist [n_rows][n_columns];
+  for (int i = 0; i < n_rows; i++) {
+    for (int j = 0; j < n_columns; j++) {
+      color[i][j] = 'b';
+      dist[i][j] = -1;
+    }
+  }
+  std::queue<std::pair<int, int>> pos_queue;
+  std::pair<int, int> curr_pos;
+  pos_queue.push(starting_position);
+  color[starting_position.first][starting_position.second] = 'g';
+  dist[starting_position.first][starting_position.second] = 0;
+
+  while (!pos_queue.empty()) {
+
+    curr_pos = pos_queue.front();
+    pos_queue.pop();
+    for (auto& [x,y] : possible_next_positions(grid_vec, curr_pos)) {
+      if (color[x][y] == 'b') {
+        pos_queue.push({x,y});
+        color[x][y] = 'g';
+        dist[x][y] = dist[curr_pos.first][curr_pos.second]+1;
+      }
+    }
+
+    color[curr_pos.first][curr_pos.second] = 'n';
+
+  }
+
+  return dist[destination.first][destination.second];
+  
 }
 
 }

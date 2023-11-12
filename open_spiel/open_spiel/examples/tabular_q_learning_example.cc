@@ -26,11 +26,12 @@
 #include "open_spiel/spiel_globals.h"
 #include "open_spiel/spiel_utils.h"
 #include "open_spiel/game_transforms/turn_based_simultaneous_game.h"
+#include "open_spiel/games/pathfinding.h"
 #include "bandits/generic_policy.h"
 #include "bandits/eps_greedy.h"
 #include "bandits/VBR_like_v1.h"
 #include "bandits/VBR_like_v2.h"
-#include "bandits/VBR_like_v4.h"
+#include "bandits/VBR_Thompson_like.h"
 #include "bandits/pathfinding_helper.h"
 #include "bandits/state_abstraction_functions.h"
 
@@ -41,7 +42,7 @@ using policies::GenericPolicy;
 using policies::EpsilonGreedyPolicy;
 using policies::VBRLikePolicyV1;
 using policies::VBRLikePolicyV2;
-using policies::VBRLikePolicyV4;
+using policies::VBRThompsonLikePolicy;
 
 using open_spiel::Action;
 using open_spiel::Game;
@@ -54,6 +55,7 @@ using open_spiel::GameParameter;
 using open_spiel::GameType;
 
 using open_spiel::algorithms::TabularQLearningSolver;
+using open_spiel::pathfinding::PathfindingGame;
 using policies::StateAbstractionFunction;
 
 using policies::standard_deviation_calc;
@@ -61,6 +63,7 @@ using policies::average_of;
 using policies::GetOptimalAction;
 
 using policies::maze_gen;
+using policies::BFS;
 
 using policies::identity;
 using policies::visibility_limit_no_distinction;
@@ -87,12 +90,14 @@ struct pathfinding_parameters {
   int n_columns = 5;
   double wall_ratio = 0.2;
   double random_move_chance = 0;
+  int maze_repetitions = 1;
 };
 
 GameParameters PFParametersToGameParameters(pathfinding_parameters params) {
   GameParameters gparams;
   gparams["random_move_chance"] = GameParameter(params.random_move_chance);
-  gparams["grid"] = GameParameter(maze_gen(params.n_rows, params.n_columns, params.wall_ratio));
+  std::string maze = maze_gen(params.n_rows, params.n_columns, params.wall_ratio);
+  gparams["grid"] = GameParameter(maze);
   gparams["horizon"] = GameParameter(params.horizon);
   return gparams;
 }
@@ -139,11 +144,12 @@ absl::flat_hash_map<int, std::vector<std::pair<int, double>>> TestGenericGame
   double win_percentage;
   absl::flat_hash_map<int, std::vector<std::pair<int, double>>> phase_scores; //Usiamo un identificativo intero per riconoscere gli algoritmi, corrisponderanno alla loro posizione in vec_algos
 
+  std::cout<<"INIZIO INTERNO"<<std::endl;
   for (int algo_id = 0; algo_id < vec_algos.size();  algo_id++) {
     for (int phase = 0; phase < n_phases; phase++) { //Ripetiamo il test in n_phases fasi per notare l'evoluzione dei risultati al miglioramento della tabella
 
       for (int iter = 0; iter < n_training; iter++) { //Eseguiamo n_training iterazioni in cui addestriamo l'agente
-        std::cout<<"FASE NUMERO "<<phase+1<<" ITERAZIONE NUMERO "<<iter+1<<std::endl;
+        // std::cout<<"FASE NUMERO "<<phase+1<<" ITERAZIONE NUMERO "<<iter+1<<std::endl;
         vec_algos[algo_id]->RunIteration();
       }
 
@@ -172,6 +178,8 @@ absl::flat_hash_map<int, std::vector<std::pair<int, double>>> TestGenericGame
         int horizon = game_parameters["horizon"].int_value();
         double success_reward = game_parameters["solve_reward"].double_value()+game_parameters["group_reward"].double_value();
         double penalty = abs(game_parameters["step_reward"].double_value());
+        std::string grid = game_parameters["grid"].string_value();
+        int minpassi = BFS(grid);
 
         std::vector<double> vec_passi;
 
@@ -186,7 +194,8 @@ absl::flat_hash_map<int, std::vector<std::pair<int, double>>> TestGenericGame
 
         double avg = 0;
         for (double n_passi : vec_passi) {
-          avg+=n_passi;
+          double relative_value = (horizon-n_passi)/((double)(horizon-minpassi));
+          avg+=relative_value;
         }
         avg/=vec_passi.size();
         phase_scores[algo_id].push_back({phase+1, avg});
@@ -206,6 +215,8 @@ absl::flat_hash_map<int, std::vector<std::pair<int, double>>> TestGenericGame
 
   }
 
+  std::cout<<"FINE INTERNO"<<std::endl;
+
   for (TabularQLearningSolver* qlearning : vec_algos) {
     delete qlearning;
   }
@@ -220,7 +231,7 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
   std::random_device rd;
   std::mt19937 rng_(rd());
 
-  absl::flat_hash_map<int, absl::flat_hash_map<int, std::vector<double>>> results; //A ogni algoritmo sono associate n_phases fasi, ad ogni fase sono associate n_reps risultati
+  absl::flat_hash_map<int, absl::flat_hash_map<int, std::vector<double>>>* results = new absl::flat_hash_map<int, absl::flat_hash_map<int, std::vector<double>>>; //A ogni algoritmo sono associate n_phases fasi, ad ogni fase sono associate n_reps risultati
 
   double baseline_wins = 0;
 
@@ -236,6 +247,7 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
   int n_columns = p_parameters.n_columns;
   double wall_ratio = p_parameters.wall_ratio;
   double random_move_chance = p_parameters.random_move_chance;
+  int maze_reps = p_parameters.maze_repetitions;
 
   GameParameters game_parameters;
 
@@ -257,7 +269,10 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
     }
 
     //Simuliamo un gioco n_playing*n_reps*n_phases volte in cui si gioca totalmente a caso, per generare una baseline dei risultati, utilizzeremo poi la media dei reward.
-    for (int match = 0; match < (n_playing*n_phases); match++) {
+    int n_random_matches = n_playing*n_phases;
+    n_random_matches*=maze_reps; //Se il gioco è pathfinding dobbiamo tenere conto delle volte che si ripete il singolo labirinto (Se non è pathfinding varrà 1)
+
+    for (int match = 0; match < n_random_matches; match++) {
       std::unique_ptr<State> state = game_pointer->NewInitialState();
       while (!state->IsTerminal()) {
         std::vector<Action> legal_actions = state->LegalActions();
@@ -269,12 +284,18 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
         int horizon = game_parameters["horizon"].int_value();
         double success_reward = game_parameters["solve_reward"].double_value()+game_parameters["group_reward"].double_value();
         double penalty = abs(game_parameters["step_reward"].double_value());
+        std::string grid = game_parameters["grid"].string_value();
+        int minpassi = BFS(grid);
+        int n_passi;
+
         if (state->Returns()[0] - horizon * penalty < 0.1) { //L'uguaglianza tra double si comporta in modo inconsistente
-          baseline_wins+=(horizon);
+          n_passi = horizon;
         }
         else {
-          baseline_wins+=(((success_reward-state->Returns()[0])/penalty)+1);
+          n_passi = (((success_reward-state->Returns()[0])/penalty)+1);
         }
+
+        baseline_wins+=((horizon-n_passi)/((double)(horizon-minpassi)));
       }
       else {
         if (state->Returns()[0] >= 0) //Se il gioco non è pathfinding assumiamo che ci basti controllare se il gioco ritorna un valore nonnegativo come vittoria/pareggio
@@ -283,39 +304,54 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
     }
 
     //Testiamo effettivamente il gioco, utilizzando i risultati accumulati dell'iterazione
-    absl::flat_hash_map<int, std::vector<std::pair<int, double>>> curr_res = TestGenericGame(game_pointer, policy_vec, t_parameters, q_parameters);
 
-    for (int algo = 0; algo < curr_res.size(); algo++) { //La taglia della mappa sarà data dal numero di algoritmi utilizzati nel test
-      std::vector<std::pair<int, double>> phase_scores_algo = curr_res.at(algo);
-      for (int i = 0; i < phase_scores_algo.size(); i++) {
-          std::pair<int, double> curr_pair = phase_scores_algo[i];
-          results[algo][curr_pair.first].push_back(curr_pair.second); //Aggiungiamo alla coppia algoritmo-fase il valore ricavato nella ripetizione rep (corrente)
+    for (int m_rep = 0; m_rep < maze_reps; m_rep++) { //Ripetiamo lo stesso test maze_repetitions volte
+
+      std::cout<<"LABIRINTO NUMERO "<<rep<<" RIPETIZIONE NUMERO "<<m_rep<<std::endl;
+     
+      absl::flat_hash_map<int, std::vector<std::pair<int, double>>> curr_res = TestGenericGame(game_pointer, policy_vec, t_parameters, q_parameters);
+
+      std::cout<<"FINE TEST"<<std::endl<<std::endl;
+
+      for (int algo = 0; algo < curr_res.size(); algo++) { //La taglia della mappa sarà data dal numero di algoritmi utilizzati nel test
+        std::vector<std::pair<int, double>> phase_scores_algo = curr_res.at(algo);
+        for (int i = 0; i < phase_scores_algo.size(); i++) {
+            std::pair<int, double> curr_pair = phase_scores_algo[i];
+            (*results)[algo][curr_pair.first].push_back(curr_pair.second); //Aggiungiamo alla coppia algoritmo-fase il valore ricavato nella ripetizione rep (corrente)
+        }
       }
+
     }
 
   }
 
-  double baseline_value = baseline_wins/((double)(n_playing*n_reps*n_phases));
+  double baseline_value = baseline_wins/((double)(n_playing*n_reps*n_phases*maze_reps));
 
   double max_y;
   double min_y;
 
-  for (int algo = 0; algo < results.size(); algo++) {
-  absl::flat_hash_map<int, std::vector<double>>& map = results.at(algo);
+  for (int algo = 0; algo < results->size(); algo++) {
+  absl::flat_hash_map<int, std::vector<double>>& map = results->at(algo);
     for (int phase = 1; phase <= map.size(); phase++) { //Le fasi sono numerate da 1 piuttosto che da 0
       std::vector<double>& phase_results = map.at(phase);
       double avg = average_of(phase_results);
+      double st_dev = standard_deviation_calc(phase_results, avg);
       if (algo == 0 && phase == 1) {
         max_y = min_y = avg;
       }
-      else if (avg < min_y) {
-        min_y = avg;
+      else if (avg-st_dev < min_y) {
+        min_y = avg-st_dev;
       }
-      else if (avg > max_y) {
-        max_y = avg;
+      else if (avg+st_dev > max_y) {
+        max_y = avg+st_dev;
       }
     }
   } 
+
+  if (baseline_value < min_y)
+    min_y = baseline_value;
+  else if (baseline_value > max_y)
+    max_y = baseline_value;
 
   std::stringstream basename;
   if (game_name == "pathfinding") {
@@ -331,31 +367,27 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
   file_dati << "set title '"<<game_name<<"'\n";
   file_dati << "set xlabel 'fase'\n";
    if (game_name == "pathfinding") {
-    file_dati << "set ylabel 'n. medio di passi'\n";
+    file_dati << "set ylabel 'efficienza relativa'\n";
   } else {
     file_dati << "set ylabel 'pr. media di vincita'\n";
   }
   file_dati << "set datafile separator ' '\n";
 
-  file_dati << "set xrange [" << 1 << ":" << n_phases << "]\n";
-  if (game_name == "pathfinding") {
-    file_dati << "set yrange [" << (ceil(max_y/5))*5 << ":" << (floor(min_y/5))*5 << "]\n";
-    file_dati << "set ytics add (\"" << min_y << "\" " << min_y << " ,\"" << max_y << "\" " << max_y << ")\n";
-  }
-  else {
-    file_dati << "set yrange [" << 0 << ":" << 1 << "]\n";
-    file_dati << "set ytics 0.1\n";
-  }
+  file_dati << "set xrange [" << 1 << ":" << n_phases+results->size()*0.04+0.1<< "]\n";
+  file_dati << "set yrange [" << min_y-0.05 << ":" << max_y+0.05 << "]\n";
+  file_dati << "set xtics 1\n";
+  file_dati << "set ytics 0.1\n";
 
   file_dati << "set key outside\n";
 
   file_dati << "set grid\n";
-  file_dati << "set arrow from 1,"<< baseline_value <<" to 10,"<< baseline_value <<" nohead lt 2 lc 'black' dt 2\n"; //La baseline essendo una linea orizzontale possiamo mapparla con una arrow
+  file_dati << "set arrow from 1,"<< baseline_value <<" to "<< n_phases+results->size()*0.04+0.1 <<","<< baseline_value <<" nohead lt 2 lc 'black' dt 2\n"; //La baseline essendo una linea orizzontale possiamo mapparla con una arrow
   file_dati << "set palette model HSV defined ( 0 0 1 1, 1 1 1 1 ) \n";
 
   file_dati << "plot ";
 
   double dt;
+  double pt;
   double n_eps = 0;
   double n_vbr = 0;
   double n_thompson = 0;
@@ -379,37 +411,37 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
   for (int i = 0; i < policy_vec.size(); i++) {
     if (policy_vec[i]->toString().find("Epsilon") != std::string::npos) {
       dt = 2;
+      pt = 20;
       i_eps++;
       palette_frac_value = i_eps/n_eps;
     } else if (policy_vec[i]->toString().find("Thompson") != std::string::npos) {
       dt = 3;
       i_thompson++;
       palette_frac_value = i_thompson/n_thompson;
+      pt = 9;
     }
     else  {
       dt = 1;
+      pt = 7;
       i_vbr++;
       palette_frac_value = i_vbr/n_vbr;
     }
 
-    file_dati << "'-' with yerrorlines title '" + policy_vec[i]->toString() + "' lt 1 lc palette frac "<< palette_frac_value <<" dt "<<dt<<" pt 7, ";
+    file_dati << "'-' with yerrorlines title '" + policy_vec[i]->toString() + "' lt 1 lc palette frac "<< palette_frac_value <<" dt "<<dt<<" pt "<<pt<<", ";
 
   }
 
   file_dati << "1/0 t 'Baseline (random)' lt 2 lc 'black' dt 2\n"; //Creiamo una linea fittizia (1/0 non essendo calcolabile creerà una linea vuota)
             //solo per avere un nome per la baseline nella legenda (Le arrow non possono avere un nome)
 
-  for (int algo = 0; algo < results.size(); algo++) {
-    absl::flat_hash_map<int, std::vector<double>>& map = results.at(algo);
+  for (int algo = 0; algo < results->size(); algo++) {
+    absl::flat_hash_map<int, std::vector<double>>& map = results->at(algo);
     for (int phase = 1; phase <= map.size(); phase++) { //Le fasi sono numerate da 1 piuttosto che da 0
       std::vector<double>& phase_results = map.at(phase);
       double avg = average_of(phase_results);
       double st_dev = standard_deviation_calc(phase_results, avg);
       double phase_value;
-      if (phase == map.size())
-        phase_value = phase-(0.04*algo)-0.01;
-      else
-        phase_value = phase+(0.04*algo)+0.01;
+      phase_value = phase+(0.04*algo)+0.01;
       file_dati << phase_value << " " << avg << " " << st_dev << "\n";
 
     }
@@ -421,15 +453,15 @@ void TestGenericGameMulti(std::string game_name, std::vector<GenericPolicy*> pol
 }
 
 int main(int argc, char** argv) {
-  pathfinding_parameters p_params1 = {25, 5, 5, 0.3, 0};
-  pathfinding_parameters p_params1R = {25, 5, 5, 0.3, 0.5};
-  pathfinding_parameters p_params2 = {25, 5, 5, 0.5, 0};
-  pathfinding_parameters p_params2R = {25, 5, 5, 0.5, 0.5};
+  pathfinding_parameters p_params1 = {25, 5, 5, 0.3, 0, 10};
+  pathfinding_parameters p_params1R = {25, 5, 5, 0.3, 0.5, 10};
+  pathfinding_parameters p_params2 = {25, 5, 5, 0.5, 0, 10};
+  pathfinding_parameters p_params2R = {25, 5, 5, 0.5, 0.5, 10};
 
-  test_parameters t_params1 = {20, 10, 30, 1, identity, "id EPS"};
-  test_parameters t_params2 = {20, 10, 100, 100, identity, "id rand EPS"};
-  test_parameters t_params3 = {20, 10, 100, 1, visibility_limit_no_distinction, "limit no dis EPS"};
-  test_parameters t_params4 = {20, 10, 100, 1, visibility_limit_with_distinction, "limit dis EPS"};
+  test_parameters t_params1 = {40, 10, 30, 1, identity, "id EPS"};
+  test_parameters t_params2 = {40, 10, 100, 100, identity, "id rand EPS"};
+  test_parameters t_params3 = {40, 10, 100, 1, visibility_limit_no_distinction, "limit no dis EPS"};
+  test_parameters t_params4 = {40, 10, 100, 1, visibility_limit_with_distinction, "limit dis EPS"};
 
   test_parameters t_params5 = {20, 10, 100, 1000, identity, "id"};
   test_parameters t_params6 = {20, 10, 1000, 1000, identity, "id"};
@@ -469,38 +501,33 @@ int main(int argc, char** argv) {
   vecVarioBase.push_back(new VBRLikePolicyV2(2, 0.7, true));
   vecVarioBase.push_back(new VBRLikePolicyV2(2, 0.9, true));
   vecVarioBase.push_back(new VBRLikePolicyV2(2, 1, false));
-  vecVarioBase.push_back(new VBRLikePolicyV4(2, 1, false));
+  vecVarioBase.push_back(new VBRThompsonLikePolicy(2, 1, false));
   vecVarioBase.push_back(new EpsilonGreedyPolicy(0.01));
 
   std::vector<GenericPolicy*> vecVario8 (vecVarioBase.begin(), vecVarioBase.end());
   vecVario8.push_back(new EpsilonGreedyPolicy(0.8));
   std::vector<GenericPolicy*> vecVario2 (vecVarioBase.begin(), vecVarioBase.end());
   vecVario2.push_back(new EpsilonGreedyPolicy(0.2));
-  std::vector<GenericPolicy*> vecVario01 (vecVarioBase.begin(), vecVarioBase.end());
-  vecVario01.push_back(new EpsilonGreedyPolicy(0.1));
-  std::vector<GenericPolicy*> vecVario68 (vecVarioBase.begin(), vecVarioBase.end());
-  vecVario68.push_back(new EpsilonGreedyPolicy(0.6));
-  vecVario68.push_back(new EpsilonGreedyPolicy(0.8));
-  std::vector<GenericPolicy*> vecVario78 (vecVarioBase.begin(), vecVarioBase.end());
-  vecVario78.push_back(new EpsilonGreedyPolicy(0.7));
-  vecVario78.push_back(new EpsilonGreedyPolicy(0.8));
-  std::vector<GenericPolicy*> vecVario79 (vecVarioBase.begin(), vecVarioBase.end());
-  vecVario79.push_back(new EpsilonGreedyPolicy(0.7));
-  vecVario79.push_back(new EpsilonGreedyPolicy(0.9));
+  std::vector<GenericPolicy*> vecVario1 (vecVarioBase.begin(), vecVarioBase.end());
+  vecVario1.push_back(new EpsilonGreedyPolicy(0.1));
+  std::vector<GenericPolicy*> vecVario7 (vecVarioBase.begin(), vecVarioBase.end());
+  vecVario7.push_back(new EpsilonGreedyPolicy(0.7));
   std::vector<GenericPolicy*> vecVario4 (vecVarioBase.begin(), vecVarioBase.end());
   vecVario4.push_back(new EpsilonGreedyPolicy(0.4));
+  std::vector<GenericPolicy*> vecVario9 (vecVarioBase.begin(), vecVarioBase.end());
+  vecVario9.push_back(new EpsilonGreedyPolicy(0.9));
 
-  TestGenericGameMulti("pathfinding", vecVario01, t_params1, q_params1, p_params1);
-  TestGenericGameMulti("pathfinding", vecVario78, t_params2, q_params1, p_params1R);
-  // TestGenericGameMulti("pathfinding", vecVario68, t_params3, q_params1, p_params1);
-  // TestGenericGameMulti("pathfinding", vecVario79, t_params4, q_params1, p_params1);
-  // TestGenericGameMulti("pathfinding", vecVario01, t_params1, q_params1, p_params2);
-  // TestGenericGameMulti("pathfinding", vecVario79, t_params2, q_params1, p_params2R);
-  // TestGenericGameMulti("pathfinding", vecVario8, t_params3, q_params1, p_params2);
-  // TestGenericGameMulti("pathfinding", vecVario2, t_params4, q_params1, p_params2);
+  TestGenericGameMulti("pathfinding", vecVario1, t_params1, q_params1, p_params1);
+  TestGenericGameMulti("pathfinding", vecVario7, t_params2, q_params1, p_params1R);
+  TestGenericGameMulti("pathfinding", vecVario2, t_params3, q_params1, p_params1);
+  TestGenericGameMulti("pathfinding", vecVario9, t_params4, q_params1, p_params1);
+  TestGenericGameMulti("pathfinding", vecVario1, t_params1, q_params1, p_params2);
+  TestGenericGameMulti("pathfinding", vecVario8, t_params2, q_params1, p_params2R);
+  TestGenericGameMulti("pathfinding", vecVario8, t_params3, q_params1, p_params2);
+  TestGenericGameMulti("pathfinding", vecVario7, t_params4, q_params1, p_params2);
 
-  // TestGenericGameMulti("blackjack", vecVario4, t_params5, q_params1);
-  // TestGenericGameMulti("blackjack", vecVario4, t_params6, q_params1);
-  // TestGenericGameMulti("tic_tac_toe", vecVario4, t_params6, q_params1);
+  TestGenericGameMulti("blackjack", vecVario1, t_params5, q_params1);
+  TestGenericGameMulti("blackjack", vecVario1, t_params6, q_params1);
+  TestGenericGameMulti("tic_tac_toe", vecVario4, t_params6, q_params1);
   return 0;
 }
