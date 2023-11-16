@@ -480,18 +480,18 @@ int main(int argc, char** argv) {
   vecEps.push_back(new EpsilonGreedyPolicy(0.9));
   vecEps.push_back(new EpsilonGreedyPolicy(1));
 
-  // TestGenericGameMulti("pathfinding", vecEps, t_params1, q_params1, p_params1);
-  // TestGenericGameMulti("pathfinding", vecEps, t_params2, q_params1, p_params1R);
-  // TestGenericGameMulti("pathfinding", vecEps, t_params3, q_params1, p_params1);
-  // TestGenericGameMulti("pathfinding", vecEps, t_params4, q_params1, p_params1);
-  // TestGenericGameMulti("pathfinding", vecEps, t_params1, q_params1, p_params2);
-  // TestGenericGameMulti("pathfinding", vecEps, t_params2, q_params1, p_params2R);
-  // TestGenericGameMulti("pathfinding", vecEps, t_params3, q_params1, p_params2);
-  // TestGenericGameMulti("pathfinding", vecEps, t_params4, q_params1, p_params2);
+  TestGenericGameMulti("pathfinding", vecEps, t_params1, q_params1, p_params1);
+  TestGenericGameMulti("pathfinding", vecEps, t_params2, q_params1, p_params1R);
+  TestGenericGameMulti("pathfinding", vecEps, t_params3, q_params1, p_params1);
+  TestGenericGameMulti("pathfinding", vecEps, t_params4, q_params1, p_params1);
+  TestGenericGameMulti("pathfinding", vecEps, t_params1, q_params1, p_params2);
+  TestGenericGameMulti("pathfinding", vecEps, t_params2, q_params1, p_params2R);
+  TestGenericGameMulti("pathfinding", vecEps, t_params3, q_params1, p_params2);
+  TestGenericGameMulti("pathfinding", vecEps, t_params4, q_params1, p_params2);
 
-  // TestGenericGameMulti("blackjack", vecEps, t_params5, q_params1);
-  // TestGenericGameMulti("blackjack", vecEps, t_params6, q_params1);
-  // TestGenericGameMulti("tic_tac_toe", vecEps, t_params6, q_params1);
+  TestGenericGameMulti("blackjack", vecEps, t_params5, q_params1);
+  TestGenericGameMulti("blackjack", vecEps, t_params6, q_params1);
+  TestGenericGameMulti("tic_tac_toe", vecEps, t_params6, q_params1);
 
   std::vector<GenericPolicy*> vecVarioBase;
   vecVarioBase.push_back(new VBRLikePolicyV2(2, 0.01, true));
